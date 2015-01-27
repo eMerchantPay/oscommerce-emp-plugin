@@ -21,7 +21,7 @@ Installation
 ------------
 
 * Copy the files to the root folder of your osCommerce installation
-* Login inside the Admin Panel and Enable the "eMerchantPay (Credit Card)" module
-* Set the correct credentials, select your prefered payment method and click "Save"
+* Login inside the Admin Panel and Enable the "eMerchantPay Standard" or "eMerchantPay Checkout" module (depending on what you want to support)
+* Set your credentials, select your prefered payment method and click "Save"
 
 You're now ready to process payments through our gateway.
