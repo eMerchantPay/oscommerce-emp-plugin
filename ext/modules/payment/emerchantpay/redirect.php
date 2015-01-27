@@ -1,4 +1,18 @@
 <?php
+/**
+ * eMerchantPay Redirect Handler
+ *
+ * Handler customer redirection in Asynchronous transactions
+ *
+ * @license     http://www.gnu.org/licenses/gpl-2.0.html
+ * @copyright   2015 eMerchantPay Ltd.
+ * @version     $Id:$
+ * @since       1.0.0
+ */
+
+// "Shhh. Be vewy vewy quiet, I'm hunting wabbits"
+ini_set('display_errors', 'Off');
+error_reporting(0);
 
 chdir('../../../../');
 
@@ -15,8 +29,8 @@ $return = isset($_GET['return']) ? strval($_GET['return']) : null;
 switch ($return) {
 	default:
 		break;
+	// Finish what checkout_process started!
 	case 'success':
-		// Finish what checkout_process started!
 		global $cart;
 
 		$cart->reset(true);
@@ -30,10 +44,28 @@ switch ($return) {
 		tep_redirect(tep_href_link(FILENAME_CHECKOUT_SUCCESS, '', 'SSL'));
 		break;
 	case 'failure':
+		global $payment;
+
+		require(DIR_WS_CLASSES . 'payment.php');
+
+		$payment_class = new payment($payment);
+
+		switch($payment) {
+			case 'emerchantpay_checkout':
+				$error = MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_ERROR_DESC;
+				break;
+			case 'emerchantpay_standard':
+				$error = MODULE_PAYMENT_EMERCHANTPAY_STANDARD_ERROR_DESC;
+				break;
+			default:
+				$error = 'Unable to process the transaction, please try again!';
+				break;
+		}
+
 		tep_redirect(
 			tep_href_link(
 				FILENAME_CHECKOUT_PAYMENT,
-				'error_message=' . urlencode(MODULE_PAYMENT_EMERCHANTPAY_GENESIS_ERROR_DESC),
+				'error_message=' . urlencode($error),
 				'SSL'
 			)
 		);

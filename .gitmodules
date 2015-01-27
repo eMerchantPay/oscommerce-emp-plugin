@@ -1,3 +1,0 @@
-[submodule "includes/modules/payment/genesis_php"]
-	path = includes/modules/payment/genesis_php
-	url = git@emp-sof-github01.emp.internal.com:eMerchantPay/genesis_php.git
