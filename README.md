@@ -1,27 +1,33 @@
 Genesis client for osCommerce
 =============================
 
-This is a Payment Module for eMerchantPay that gives you the ability to process payments through eMerchantPay's Payment Gateway - Genesis.
+This is a Payment Module for osCommerce, that gives you the ability to process payments through eMerchantPay's Payment Gateway - Genesis.
 
 Requirements
 ------------
 
-* osCommerce 2.x
-* GenesisPHP 1.0
+* osCommerce v2.x
+* GenesisPHP v1.3.1 (integrated)
 
 GenesisPHP Requirements
 ------------
 
-* PHP version >= 5.3 (however since 5.3 is EoL, we recommend at least PHP v5.4)
-* PHP with libxml
-* PHP ext: cURL (optionally you can use StreamContext)
-* Composer
+* PHP version 5.3.2 or newer
+* PHP Extensions:
+    * [BCMath](https://php.net/bcmath)
+    * [CURL](https://php.net/curl) (required, only if you use the curl network interface)
+    * [Filter](https://php.net/filter)
+    * [Hash](https://php.net/hash)
+    * [XMLReader](https://php.net/xmlreader)
+    * [XMLWriter](https://php.net/xmlwriter)
 
 Installation
 ------------
 
-* Copy the files to the root folder of your osCommerce installation
-* Login inside the Admin Panel and Enable the "eMerchantPay Standard" or "eMerchantPay Checkout" module (depending on what you want to support)
-* Set your credentials, select your prefered payment method and click "Save"
+* Copy the files to the ```<root>``` folder of your osCommerce installation
+* Login inside the ```Administration``` area
+* Navigate to ```Modules``` -> ```Payment``` and click ```Install Module``` button
+* Select the ```eMerchantPay Checkout``` module and click ```Install Module```
+* Set your credentials click ```Save```
 
 You're now ready to process payments through our gateway.

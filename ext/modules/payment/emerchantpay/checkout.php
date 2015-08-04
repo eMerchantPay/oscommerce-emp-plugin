@@ -25,7 +25,7 @@ if ( !defined('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_STATUS') || (MODULE_PAYMENT_
 function setCredentials()
 {
     \Genesis\Config::setEndpoint(
-        \Genesis\API\Constants\Endpoints::ECOMPROCESSING
+        \Genesis\API\Constants\Endpoints::EMERCHANTPAY
     );
 
 	\Genesis\Config::setUsername(
