@@ -330,8 +330,6 @@ class emerchantpay_checkout
         );
 
         $alias_map = array(
-            \Genesis\API\Constants\Payment\Methods::ELV         =>
-                \Genesis\API\Constants\Transaction\Types::PPRO,
             \Genesis\API\Constants\Payment\Methods::EPS         =>
                 \Genesis\API\Constants\Transaction\Types::PPRO,
             \Genesis\API\Constants\Payment\Methods::GIRO_PAY    =>
@@ -387,7 +385,6 @@ class emerchantpay_checkout
         $transaction_types = array(
             \Genesis\API\Constants\Transaction\Types::ABNIDEAL,
             \Genesis\API\Constants\Transaction\Types::CASHU,
-            \Genesis\API\Constants\Payment\Methods::ELV,
             \Genesis\API\Constants\Payment\Methods::EPS,
             \Genesis\API\Constants\Payment\Methods::GIRO_PAY,
             \Genesis\API\Constants\Transaction\Types::NETELLER,
