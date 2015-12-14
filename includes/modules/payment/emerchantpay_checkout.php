@@ -389,14 +389,18 @@ class emerchantpay_checkout
             \Genesis\API\Constants\Payment\Methods::GIRO_PAY,
             \Genesis\API\Constants\Transaction\Types::NETELLER,
             \Genesis\API\Constants\Payment\Methods::QIWI,
+            \Genesis\API\Constants\Transaction\Types::PAYBYVOUCHER_SALE,
+            \Genesis\API\Constants\Transaction\Types::PAYBYVOUCHER_YEEPAY,
             \Genesis\API\Constants\Transaction\Types::PAYSAFECARD,
             \Genesis\API\Constants\Payment\Methods::PRZELEWY24,
+            \Genesis\API\Constants\Transaction\Types::POLI,
             \Genesis\API\Constants\Payment\Methods::SAFETY_PAY,
             \Genesis\API\Constants\Transaction\Types::SALE,
             \Genesis\API\Constants\Transaction\Types::SALE_3D,
             \Genesis\API\Constants\Transaction\Types::SOFORT,
             \Genesis\API\Constants\Payment\Methods::TELEINGRESO,
-            \Genesis\API\Constants\Payment\Methods::TRUST_PAY
+            \Genesis\API\Constants\Payment\Methods::TRUST_PAY,
+            \Genesis\API\Constants\Transaction\Types::WEBMONEY
         );
 
         $languages = array(
