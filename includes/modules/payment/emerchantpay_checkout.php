@@ -86,7 +86,9 @@ class emerchantpay_checkout
 	function init() {
 		global $order;
 
+		$this->signature = "emerchantpay|emerchantpay_checkout|1.2.3";
 		$this->code 		= 'emerchantpay_checkout';
+		$this->api_version = "1.4";
 
 		$this->title 		= $this->getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_TEXT_TITLE');
 		$this->public_title = $this->getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_TEXT_PUBLIC_TITLE');

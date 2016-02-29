@@ -7,7 +7,7 @@ Requirements
 ------------
 
 * osCommerce v2.x
-* GenesisPHP v1.3.1 (integrated)
+* GenesisPHP v1.4
 
 GenesisPHP Requirements
 ------------
