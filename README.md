@@ -7,7 +7,7 @@ Requirements
 ------------
 
 * osCommerce v2.x
-* GenesisPHP v1.4
+* [GenesisPHP v1.4](https://github.com/GenesisGateway/genesis_php) - (Integrated in Module)
 
 GenesisPHP Requirements
 ------------
@@ -24,7 +24,7 @@ GenesisPHP Requirements
 Installation
 ------------
 
-* Copy the files to the ```<root>``` folder of your osCommerce installation
+* Upload the contents of the folder (excluding ```README.md```) to the ```<root>``` folder of your osCommerce installation
 * Login inside the ```Administration``` area
 * Navigate to ```Modules``` -> ```Payment``` and click ```Install Module``` button
 * Select the ```eMerchantPay Checkout``` module and click ```Install Module```
