@@ -4,45 +4,50 @@
  *
  * Server notifications handler
  *
- * @license     http://www.gnu.org/licenses/gpl-2.0.html
+ * @license     http://opensource.org/licenses/MIT The MIT License
  * @copyright   2015 eMerchantPay Ltd.
  * @version     $Id:$
- * @since       1.0.0
+ * @since       1.1.0
  */
 
-// "Shhh. Be vewy vewy quiet, I'm hunting wabbits"
 ini_set('display_errors', 'Off');
 error_reporting(0);
 
 chdir('../../../../');
 
 require 'includes/application_top.php';
-require 'includes/apps/emerchantpay/libs/genesis_php/vendor/autoload.php';
-
-use \Genesis\Genesis as Genesis;
-use \Genesis\GenesisConfig as GenesisConfig;
+require 'includes/apps/emerchantpay/libs/genesis/vendor/autoload.php';
 
 if ( !defined('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_STATUS') || (MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_STATUS  != 'True') ) {
 	exit(0);
 }
 
-function setCredentials() {
-	GenesisConfig::setUsername(
+function setCredentials()
+{
+    \Genesis\Config::setEndpoint(
+        \Genesis\API\Constants\Endpoints::EMERCHANTPAY
+    );
+
+	\Genesis\Config::setUsername(
 		getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_USERNAME')
 	);
-	GenesisConfig::setPassword(
+	\Genesis\Config::setPassword(
 		getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_PASSWORD')
 	);
 
-	switch(getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_ENVIRONMENT')){
-		default:
-		case 'Staging':
-			GenesisConfig::setEnvironment('sandbox');
-			break;
-		case 'Production':
-			GenesisConfig::setEnvironment('production');
-			break;
-	}
+    switch(getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_ENVIRONMENT')){
+        default:
+        case 'Staging':
+            \Genesis\Config::setEnvironment(
+                \Genesis\API\Constants\Environments::STAGING
+            );
+            break;
+        case 'Production':
+            \Genesis\Config::setEnvironment(
+                \Genesis\API\Constants\Environments::PRODUCTION
+            );
+            break;
+    }
 }
 
 function getConst($var) {
@@ -50,30 +55,22 @@ function getConst($var) {
 }
 
 if (isset($_POST['wpf_unique_id'])) {
-	$notification = new \Genesis\API\Notification();
 
-	$notification->parseNotification($_POST);
+    setCredentials();
 
-	setCredentials();
+	$notification = new \Genesis\API\Notification($_POST);
 
 	if ($notification->isAuthentic()) {
-		$genesis = new Genesis('WPF\Reconcile');
+		$notification->initReconciliation();
 
-		$genesis
-			->request()
-				->setUniqueId($notification->getParsedNotification()->wpf_unique_id);
+		$reconcile = $notification->getReconciliationObject();
 
-		$genesis->execute();
-
-		$reconcile = $genesis->response()->getResponseObject();
-
-		// Case 1: Customer completed transaction
 		if (isset($reconcile->payment_transaction)) {
 			$payment = $reconcile->payment_transaction;
 
 			list($order_id, $order_hash) = explode('-', $payment->transaction_id);
 
-			$orderQuery = tep_db_query("SELECT `orders_id`, `orders_status`, `currency`, `currency_value` FROM " . TABLE_ORDERS . " WHERE `orders_id` = '" . strval($order_id) . "'");
+			$orderQuery = tep_db_query("SELECT `orders_id`, `orders_status`, `currency`, `currency_value` FROM " . TABLE_ORDERS . " WHERE `orders_id` = '" . abs(intval($order_id)) . "'");
 
 			if (!tep_db_num_rows($orderQuery)) {
 				exit(0);
@@ -82,11 +79,11 @@ if (isset($_POST['wpf_unique_id'])) {
 			$order = tep_db_fetch_array($orderQuery);
 
 			switch ($payment->status) {
-				case 'approved':
+				case \Genesis\API\Constants\Transaction\States::APPROVED:
 					$order_status_id = intval(getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_PROCESSED_ORDER_STATUS_ID'));
 					break;
-				case 'error':
-				case 'declined':
+				case \Genesis\API\Constants\Transaction\States::ERROR:
+				case \Genesis\API\Constants\Transaction\States::DECLINED:
 					$order_status_id = intval(getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_FAILED_ORDER_STATUS_ID'));
 					break;
 				default:
@@ -94,7 +91,7 @@ if (isset($_POST['wpf_unique_id'])) {
 			}
 
 			// Update Order Status
-			tep_db_query("UPDATE " . TABLE_ORDERS . " SET `orders_status` = '" . $order_status_id . "', `last_modified` = NOW() WHERE `orders_id` = '" . strval($order['orders_id']) . "'");
+			tep_db_query("UPDATE " . TABLE_ORDERS . " SET `orders_status` = '" . abs(intval($order_status_id)) . "', `last_modified` = NOW() WHERE `orders_id` = '" . abs(intval($order['orders_id'])) . "'");
 
 			// Add Order Status History Entry
 			$sql_data_array = array(
@@ -104,21 +101,21 @@ if (isset($_POST['wpf_unique_id'])) {
 				'customer_notified' => '1',
 				'comments'          =>
 					sprintf(
-						"[Payment Notification]" . PHP_EOL .
+						"[Notification]" .  PHP_EOL .
 						"- Unique ID: %s" . PHP_EOL .
-						"- Status: %s",
-						$payment->unique_id,
-						$payment->status
+						"- Status: %s".     PHP_EOL .
+                        "- Message: %s",
+                        $payment->unique_id,
+                        $payment->status,
+                        $payment->message
 					),
 			);
 
 			tep_db_perform(TABLE_ORDERS_STATUS_HISTORY, $sql_data_array);
-		}
-		// Case 2: Customer hasn't completed any transaction
-		else {
+		} else {
 			list($order_id, $order_hash) = explode('-', $reconcile->transaction_id);
 
-			$orderQuery = tep_db_query("SELECT `orders_id`, `orders_status`, `currency`, `currency_value` FROM " . TABLE_ORDERS . " WHERE `orders_id` = '" . strval($order_id) . "'");
+			$orderQuery = tep_db_query("SELECT `orders_id`, `orders_status`, `currency`, `currency_value` FROM " . TABLE_ORDERS . " WHERE `orders_id` = '" . abs(intval($order_id)) . "'");
 
 			if (!tep_db_num_rows($orderQuery)) {
 				exit(0);
@@ -129,7 +126,7 @@ if (isset($_POST['wpf_unique_id'])) {
 			$order_status_id = intval(getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_FAILED_ORDER_STATUS_ID'));
 
 			// Update Order Status
-			tep_db_query("UPDATE " . TABLE_ORDERS . " SET `orders_status` = '" . $order_status_id . "', `last_modified` = NOW() WHERE `orders_id` = '" . strval($order['orders_id']) . "'");
+			tep_db_query("UPDATE " . TABLE_ORDERS . " SET `orders_status` = '" . abs(intval($order_status_id)) . "', `last_modified` = NOW() WHERE `orders_id` = '" . abs(intval($order['orders_id'])) . "'");
 
 			// Add Order Status History Entry
 			$sql_data_array = array(
@@ -139,19 +136,20 @@ if (isset($_POST['wpf_unique_id'])) {
 				'customer_notified' => '1',
 				'comments'          =>
 					sprintf(
-						"[Payment Notification]" . PHP_EOL .
+						"[Notification]" .  PHP_EOL .
 						"- Unique ID: %s" . PHP_EOL .
-						"- Status: %s",
+						"- Status: %s".     PHP_EOL .
+                        "- Message: %s",
 						$reconcile->unique_id,
-						$reconcile->status
+						$reconcile->status,
+                        $reconcile->message
 					),
 			);
 
 			tep_db_perform(TABLE_ORDERS_STATUS_HISTORY, $sql_data_array);
 		}
 
-		header('Content-type: application/xml');
-		echo $notification->getEchoResponse();
+        $notification->renderResponse();
 	}
 }
 
