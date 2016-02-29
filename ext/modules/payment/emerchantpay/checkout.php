@@ -1,111 +1,156 @@
 <?php
+/**
+ * eMerchantPay Checkout Notifications
+ *
+ * Server notifications handler
+ *
+ * @license     http://opensource.org/licenses/MIT The MIT License
+ * @copyright   2015 eMerchantPay Ltd.
+ * @version     $Id:$
+ * @since       1.1.0
+ */
+
+ini_set('display_errors', 'Off');
+error_reporting(0);
 
 chdir('../../../../');
-require('includes/application_top.php');
 
-// if the customer is not logged on, redirect them to the login page
-if (!tep_session_is_registered('customer_id')) {
-	$navigation->set_snapshot(array('mode' => 'SSL', 'page' => FILENAME_CHECKOUT_PAYMENT));
-	tep_redirect(tep_href_link(FILENAME_LOGIN, '', 'SSL'));
+require 'includes/application_top.php';
+require 'includes/apps/emerchantpay/libs/genesis/vendor/autoload.php';
+
+if ( !defined('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_STATUS') || (MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_STATUS  != 'True') ) {
+	exit(0);
 }
 
-// if there is nothing in the customers cart, redirect them to the shopping cart page
-if ($cart->count_contents() < 1) {
-	tep_redirect(tep_href_link(FILENAME_SHOPPING_CART));
+function setCredentials()
+{
+    \Genesis\Config::setEndpoint(
+        \Genesis\API\Constants\Endpoints::EMERCHANTPAY
+    );
+
+	\Genesis\Config::setUsername(
+		getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_USERNAME')
+	);
+	\Genesis\Config::setPassword(
+		getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_PASSWORD')
+	);
+
+    switch(getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_ENVIRONMENT')){
+        default:
+        case 'Staging':
+            \Genesis\Config::setEnvironment(
+                \Genesis\API\Constants\Environments::STAGING
+            );
+            break;
+        case 'Production':
+            \Genesis\Config::setEnvironment(
+                \Genesis\API\Constants\Environments::PRODUCTION
+            );
+            break;
+    }
 }
 
-// avoid hack attempts during the checkout procedure by checking the internal cartID
-if (isset($cart->cartID) && tep_session_is_registered('cartID')) {
-	if ($cart->cartID != $cartID) {
-		tep_redirect(tep_href_link(FILENAME_CHECKOUT_SHIPPING, '', 'SSL'));
-	}
+function getConst($var) {
+	return defined($var) ? constant($var) : '';
 }
 
-// if no shipping method has been selected, redirect the customer to the shipping method selection page
-if (!tep_session_is_registered('shipping')) {
-	tep_redirect(tep_href_link(FILENAME_CHECKOUT_SHIPPING, '', 'SSL'));
-}
+if (isset($_POST['wpf_unique_id'])) {
 
-if (!tep_session_is_registered('payment') || (substr($payment, 0, 12) != 'emerchantpay')) {
-	//tep_redirect(tep_href_link(FILENAME_CHECKOUT_PAYMENT, '', 'SSL'));
-}
+    setCredentials();
 
-require(DIR_WS_CLASSES . 'payment.php');
-$payment_modules = new payment($payment);
+	$notification = new \Genesis\API\Notification($_POST);
 
-require(DIR_WS_CLASSES . 'order.php');
-$order = new order;
+	if ($notification->isAuthentic()) {
+		$notification->initReconciliation();
 
-$payment_modules->update_status();
+		$reconcile = $notification->getReconciliationObject();
 
-if ( ( is_array($payment_modules->modules) && (sizeof($payment_modules->modules) > 1) && !is_object($$payment) ) || (is_object($$payment) && ($$payment->enabled == false)) ) {
-	//tep_redirect(tep_href_link(FILENAME_CHECKOUT_PAYMENT, 'error_message=' . urlencode(ERROR_NO_PAYMENT_MODULE_SELECTED), 'SSL'));
-}
+		if (isset($reconcile->payment_transaction)) {
+			$payment = $reconcile->payment_transaction;
 
-if (is_array($payment_modules->modules)) {
-	$payment_modules->pre_confirmation_check();
-}
+			list($order_id, $order_hash) = explode('-', $payment->transaction_id);
 
-// load the selected shipping module
-require(DIR_WS_CLASSES . 'shipping.php');
-$shipping_modules = new shipping($shipping);
+			$orderQuery = tep_db_query("SELECT `orders_id`, `orders_status`, `currency`, `currency_value` FROM " . TABLE_ORDERS . " WHERE `orders_id` = '" . abs(intval($order_id)) . "'");
 
-require(DIR_WS_CLASSES . 'order_total.php');
-$order_total_modules = new order_total;
-$order_total_modules->process();
+			if (!tep_db_num_rows($orderQuery)) {
+				exit(0);
+			}
 
-// Stock Check
-$any_out_of_stock = false;
-if (STOCK_CHECK == 'true') {
-	for ($i=0, $n=sizeof($order->products); $i<$n; $i++) {
-		if (tep_check_stock($order->products[$i]['id'], $order->products[$i]['qty'])) {
-			$any_out_of_stock = true;
+			$order = tep_db_fetch_array($orderQuery);
+
+			switch ($payment->status) {
+				case \Genesis\API\Constants\Transaction\States::APPROVED:
+					$order_status_id = intval(getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_PROCESSED_ORDER_STATUS_ID'));
+					break;
+				case \Genesis\API\Constants\Transaction\States::ERROR:
+				case \Genesis\API\Constants\Transaction\States::DECLINED:
+					$order_status_id = intval(getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_FAILED_ORDER_STATUS_ID'));
+					break;
+				default:
+					$order_status_id = intval(getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_ORDER_STATUS_ID'));
+			}
+
+			// Update Order Status
+			tep_db_query("UPDATE " . TABLE_ORDERS . " SET `orders_status` = '" . abs(intval($order_status_id)) . "', `last_modified` = NOW() WHERE `orders_id` = '" . abs(intval($order['orders_id'])) . "'");
+
+			// Add Order Status History Entry
+			$sql_data_array = array(
+				'orders_id'         => $order['orders_id'],
+				'orders_status_id'  => $order_status_id,
+				'date_added'        => 'now()',
+				'customer_notified' => '1',
+				'comments'          =>
+					sprintf(
+						"[Notification]" .  PHP_EOL .
+						"- Unique ID: %s" . PHP_EOL .
+						"- Status: %s".     PHP_EOL .
+                        "- Message: %s",
+                        $payment->unique_id,
+                        $payment->status,
+                        $payment->message
+					),
+			);
+
+			tep_db_perform(TABLE_ORDERS_STATUS_HISTORY, $sql_data_array);
+		} else {
+			list($order_id, $order_hash) = explode('-', $reconcile->transaction_id);
+
+			$orderQuery = tep_db_query("SELECT `orders_id`, `orders_status`, `currency`, `currency_value` FROM " . TABLE_ORDERS . " WHERE `orders_id` = '" . abs(intval($order_id)) . "'");
+
+			if (!tep_db_num_rows($orderQuery)) {
+				exit(0);
+			}
+
+			$order = tep_db_fetch_array($orderQuery);
+
+			$order_status_id = intval(getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_FAILED_ORDER_STATUS_ID'));
+
+			// Update Order Status
+			tep_db_query("UPDATE " . TABLE_ORDERS . " SET `orders_status` = '" . abs(intval($order_status_id)) . "', `last_modified` = NOW() WHERE `orders_id` = '" . abs(intval($order['orders_id'])) . "'");
+
+			// Add Order Status History Entry
+			$sql_data_array = array(
+				'orders_id'         => $order['orders_id'],
+				'orders_status_id'  => $order_status_id,
+				'date_added'        => 'now()',
+				'customer_notified' => '1',
+				'comments'          =>
+					sprintf(
+						"[Notification]" .  PHP_EOL .
+						"- Unique ID: %s" . PHP_EOL .
+						"- Status: %s".     PHP_EOL .
+                        "- Message: %s",
+						$reconcile->unique_id,
+						$reconcile->status,
+                        $reconcile->message
+					),
+			);
+
+			tep_db_perform(TABLE_ORDERS_STATUS_HISTORY, $sql_data_array);
 		}
-	}
-	// Out of Stock
-	if ( (STOCK_ALLOW_CHECKOUT != 'true') && ($any_out_of_stock == true) ) {
-		tep_redirect(tep_href_link(FILENAME_SHOPPING_CART));
+
+        $notification->renderResponse();
 	}
 }
 
-GenesisConfig::setUsername(
-	getConst('MODULE_PAYMENT_EMERCHANTPAY_GENESIS_USERNAME')
-);
-GenesisConfig::setPassword(
-	getConst('MODULE_PAYMENT_EMERCHANTPAY_GENESIS_PASSWORD')
-);
-GenesisConfig::setToken(
-	getConst('MODULE_PAYMENT_EMERCHANTPAY_GENESIS_TOKEN')
-);
-
-switch(getConst('MODULE_PAYMENT_EMERCHANTPAY_GENESIS_ENVIRONMENT')){
-	default:
-	case 'Staging':
-		GenesisConfig::setEnvironment('sandbox');
-		break;
-	case 'Production':
-		GenesisConfig::setEnvironment('production');
-		break;
-}
-
-require(DIR_WS_LANGUAGES . $language . '/' . FILENAME_CHECKOUT_CONFIRMATION);
-
-$breadcrumb->add(NAVBAR_TITLE_1, tep_href_link(FILENAME_CHECKOUT_SHIPPING, '', 'SSL'));
-$breadcrumb->add(NAVBAR_TITLE_2);
-
-//$iframe_url = 'https://www.moneybookers.com/app/payment.pl?sid=' . $HTTP_POST_VARS['sid'];
-
-require(DIR_WS_INCLUDES . 'template_top.php');
-?>
-	<table border="0" width="100%" cellspacing="0" cellpadding="0">
-		<tr>
-			<td>
-				<iframe src="<?php echo $iframe_url; ?>" width="100%" height="600" frameborder="0">
-					<p>Your browser does not support iframes.</p>
-				</iframe>
-			</td>
-		</tr>
-	</table>
-<?php
-require(DIR_WS_INCLUDES . 'template_bottom.php');
-require(DIR_WS_INCLUDES . 'application_bottom.php');
+exit(0);

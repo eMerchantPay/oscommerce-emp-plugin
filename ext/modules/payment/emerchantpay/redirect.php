@@ -1,4 +1,17 @@
 <?php
+/**
+ * eMerchantPay Redirect Handler
+ *
+ * Handler customer redirection in Asynchronous transactions
+ *
+ * @license     http://opensource.org/licenses/MIT The MIT License
+ * @copyright   2015 eMerchantPay Ltd.
+ * @version     $Id:$
+ * @since       1.1.0
+ */
+
+ini_set('display_errors', 'Off');
+error_reporting(0);
 
 chdir('../../../../');
 
@@ -10,13 +23,13 @@ if (!tep_session_is_registered('customer_id')) {
 	tep_redirect(tep_href_link(FILENAME_LOGIN, '', 'SSL'));
 }
 
-$return = isset($_GET['return']) ? strval($_GET['return']) : null;
+$return = isset($_GET['return']) ? trim($_GET['return']) : null;
 
 switch ($return) {
 	default:
 		break;
+	// Finish what checkout_process started!
 	case 'success':
-		// Finish what checkout_process started!
 		global $cart;
 
 		$cart->reset(true);
@@ -30,10 +43,12 @@ switch ($return) {
 		tep_redirect(tep_href_link(FILENAME_CHECKOUT_SUCCESS, '', 'SSL'));
 		break;
 	case 'failure':
+		global $payment;
+
 		tep_redirect(
 			tep_href_link(
 				FILENAME_CHECKOUT_PAYMENT,
-				'error_message=' . urlencode(MODULE_PAYMENT_EMERCHANTPAY_GENESIS_ERROR_DESC),
+				'payment_error=' . $payment,
 				'SSL'
 			)
 		);
