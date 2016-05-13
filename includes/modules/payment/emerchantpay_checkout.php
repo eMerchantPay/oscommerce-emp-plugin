@@ -86,7 +86,7 @@ class emerchantpay_checkout
 	function init() {
 		global $order;
 
-		$this->signature 	= "emerchantpay|emerchantpay_checkout|1.2.4";
+		$this->signature 	= "emerchantpay|emerchantpay_checkout|1.2.5";
 		$this->code 		= "emerchantpay_checkout";
 		$this->api_version 	= "1.4";
 
@@ -95,7 +95,7 @@ class emerchantpay_checkout
 		$this->description 	= $this->getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_TEXT_DESCRIPTION');
 		$this->sort_order 	= $this->getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_SORT_ORDER');
 
-		$this->enabled 		= filter_var($this->getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_STATUS'), FILTER_VALIDATE_BOOLEAN);
+		$this->enabled 		= $this->getBoolConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_STATUS');
 
 		$this->order        = $order;
 
@@ -303,19 +303,13 @@ class emerchantpay_checkout
 			$this->getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_PASSWORD')
 		);
 
-		switch($this->getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_ENVIRONMENT')){
-			default:
-			case 'Staging':
-				\Genesis\Config::setEnvironment(
-					\Genesis\API\Constants\Environments::STAGING
-				);
-				break;
-			case 'Production':
-				\Genesis\Config::setEnvironment(
-					\Genesis\API\Constants\Environments::PRODUCTION
-				);
-				break;
-		}
+		$isInStagingMode = $this->getBoolConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_ENVIRONMENT');
+
+		\Genesis\Config::setEnvironment(
+			$isInStagingMode
+				? \Genesis\API\Constants\Environments::STAGING
+				: \Genesis\API\Constants\Environments::PRODUCTION
+		);
 	}
 
 	function getConst($var)
@@ -323,11 +317,20 @@ class emerchantpay_checkout
 		return defined($var) ? constant($var) : '';
 	}
 
+	function getBoolConst($var)
+	{
+		return filter_var(
+			$this->getConst($var),
+			FILTER_VALIDATE_BOOLEAN
+		);
+	}
+
     function get_checkout_transaction_types()
     {
         $processed_list = array();
 
-        $selected_types = array_filter(
+        $selected_types = array_map(
+			'trim',
             explode(',', $this->getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_TRANSACTION_TYPE'))
         );
 
@@ -424,7 +427,14 @@ class emerchantpay_checkout
 
 	function remove()
     {
-		tep_db_query("delete from " . TABLE_CONFIGURATION . " where configuration_key in ('" . implode("', '", $this->keys()) . "')");
+		// include the list of project database tables (If there are not included yet)
+		if (!defined('TABLE_CONFIGURATION') && defined('DIR_WS_INCLUDES'))
+		{
+			require(DIR_WS_INCLUDES . 'database_tables.php');
+		}
+
+		if (defined('TABLE_CONFIGURATION'))
+			tep_db_query("delete from " . TABLE_CONFIGURATION . " where configuration_key in ('" . implode("', '", $this->keys()) . "')");
 	}
 
 	function updateStatuses($status_name)
