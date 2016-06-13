@@ -1,156 +1,143 @@
 <?php
-/**
- * eMerchantPay Checkout Notifications
+/*
+ * Copyright (C) 2016 eMerchantPay Ltd.
  *
- * Server notifications handler
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
  *
- * @license     http://opensource.org/licenses/MIT The MIT License
- * @copyright   2015 eMerchantPay Ltd.
- * @version     $Id:$
- * @since       1.1.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * @author      eMerchantPay
+ * @copyright   2016 eMerchantPay Ltd.
+ * @license     http://opensource.org/licenses/gpl-2.0.php GNU General Public License, version 2 (GPL-2.0)
  */
 
-ini_set('display_errors', 'Off');
-error_reporting(0);
+chdir("../../../../");
 
-chdir('../../../../');
+require "includes/application_top.php";
 
-require 'includes/application_top.php';
-require 'includes/apps/emerchantpay/libs/genesis/vendor/autoload.php';
-
-if ( !defined('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_STATUS') || (MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_STATUS  != 'True') ) {
-	exit(0);
+if (!class_exists('emerchantpay_notification_base')) {
+	require_once DIR_FS_CATALOG . "ext/modules/payment/emerchantpay/notification_base.php";
 }
 
-function setCredentials()
+/**
+ * Checkout Payment Method Notification Handler Class
+ * Class emerchantpay_checkout_notification
+ */
+class emerchantpay_checkout_notification extends emerchantpay_notification_base
 {
-    \Genesis\Config::setEndpoint(
-        \Genesis\API\Constants\Endpoints::EMERCHANTPAY
-    );
+	protected function getTableNameTransactions()
+	{
+		return static::EMERCHANTPAY_CHECKOUT_TRANSACTIONS_TABLE_NAME;
+	}
 
-	\Genesis\Config::setUsername(
-		getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_USERNAME')
-	);
-	\Genesis\Config::setPassword(
-		getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_PASSWORD')
-	);
+	public function __construct()
+	{
+		$this->code = static::EMERCHANTPAY_CHECKOUT_METHOD_CODE;
+		parent::__construct();
+	}
 
-    switch(getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_ENVIRONMENT')){
-        default:
-        case 'Staging':
-            \Genesis\Config::setEnvironment(
-                \Genesis\API\Constants\Environments::STAGING
-            );
-            break;
-        case 'Production':
-            \Genesis\Config::setEnvironment(
-                \Genesis\API\Constants\Environments::PRODUCTION
-            );
-            break;
-    }
-}
+	protected function isValidNotification($requestData)
+	{
+		return
+			parent::isValidNotification($requestData) &&
+			isset($requestData['wpf_unique_id']);
+	}
 
-function getConst($var) {
-	return defined($var) ? constant($var) : '';
-}
-
-if (isset($_POST['wpf_unique_id'])) {
-
-    setCredentials();
-
-	$notification = new \Genesis\API\Notification($_POST);
-
-	if ($notification->isAuthentic()) {
-		$notification->initReconciliation();
-
-		$reconcile = $notification->getReconciliationObject();
+	protected function processNotificationObject($reconcile)
+	{
+		$timestamp = static::formatTimeStamp($reconcile->timestamp);
 
 		if (isset($reconcile->payment_transaction)) {
 			$payment = $reconcile->payment_transaction;
 
-			list($order_id, $order_hash) = explode('-', $payment->transaction_id);
+			$order_id = $this->getOrderByTransaction($reconcile->unique_id);
 
-			$orderQuery = tep_db_query("SELECT `orders_id`, `orders_status`, `currency`, `currency_value` FROM " . TABLE_ORDERS . " WHERE `orders_id` = '" . abs(intval($order_id)) . "'");
-
-			if (!tep_db_num_rows($orderQuery)) {
-				exit(0);
+			if (!$this->getOrderExists($order_id)) {
+				return false;
 			}
-
-			$order = tep_db_fetch_array($orderQuery);
 
 			switch ($payment->status) {
 				case \Genesis\API\Constants\Transaction\States::APPROVED:
-					$order_status_id = intval(getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_PROCESSED_ORDER_STATUS_ID'));
+					$order_status_id = $this->getIntSetting('PROCESSED_ORDER_STATUS_ID');
 					break;
 				case \Genesis\API\Constants\Transaction\States::ERROR:
 				case \Genesis\API\Constants\Transaction\States::DECLINED:
-					$order_status_id = intval(getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_FAILED_ORDER_STATUS_ID'));
+					$order_status_id = $this->getIntSetting('FAILED_ORDER_STATUS_ID');
 					break;
 				default:
-					$order_status_id = intval(getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_ORDER_STATUS_ID'));
+					$order_status_id = $this->getIntSetting('ORDER_STATUS_ID');
 			}
 
-			// Update Order Status
-			tep_db_query("UPDATE " . TABLE_ORDERS . " SET `orders_status` = '" . abs(intval($order_status_id)) . "', `last_modified` = NOW() WHERE `orders_id` = '" . abs(intval($order['orders_id'])) . "'");
-
-			// Add Order Status History Entry
-			$sql_data_array = array(
-				'orders_id'         => $order['orders_id'],
-				'orders_status_id'  => $order_status_id,
-				'date_added'        => 'now()',
-				'customer_notified' => '1',
-				'comments'          =>
-					sprintf(
-						"[Notification]" .  PHP_EOL .
-						"- Unique ID: %s" . PHP_EOL .
-						"- Status: %s".     PHP_EOL .
-                        "- Message: %s",
-                        $payment->unique_id,
-                        $payment->status,
-                        $payment->message
-					),
+			static::setOrderStatus(
+				$order_id,
+				$order_status_id
 			);
 
-			tep_db_perform(TABLE_ORDERS_STATUS_HISTORY, $sql_data_array);
+			$this->addOrderNotificationHistory(
+				$order_id,
+				$order_status_id,
+				$payment
+			);
+
+			$data = array(
+				'order_id'          => $order_id,
+				'reference_id'      => $reconcile->unique_id,
+				'unique_id'         => $payment->unique_id,
+				'type'              => $payment->transaction_type,
+				'mode'              => $payment->mode,
+				'status'            => $payment->status,
+				'currency'          => $payment->currency,
+				'amount'            => $payment->amount,
+				'timestamp'         => $timestamp,
+				'terminal_token'    => isset($payment->terminal_token) ? $payment->terminal_token : '',
+				'message'           => isset($payment->message) ? $payment->message : '',
+				'technical_message' => isset($payment->technical_message) ? $payment->technical_message : '',
+			);
+
+			$this->doPopulateTransaction($data);
 		} else {
-			list($order_id, $order_hash) = explode('-', $reconcile->transaction_id);
+			$order_id = $this->getOrderByTransaction($reconcile->unique_id);
 
-			$orderQuery = tep_db_query("SELECT `orders_id`, `orders_status`, `currency`, `currency_value` FROM " . TABLE_ORDERS . " WHERE `orders_id` = '" . abs(intval($order_id)) . "'");
-
-			if (!tep_db_num_rows($orderQuery)) {
-				exit(0);
+			if (!$this->getOrderExists($order_id)) {
+				return false;
 			}
 
-			$order = tep_db_fetch_array($orderQuery);
+			$order_status_id = $this->getIntSetting('FAILED_ORDER_STATUS_ID');
 
-			$order_status_id = intval(getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_FAILED_ORDER_STATUS_ID'));
-
-			// Update Order Status
-			tep_db_query("UPDATE " . TABLE_ORDERS . " SET `orders_status` = '" . abs(intval($order_status_id)) . "', `last_modified` = NOW() WHERE `orders_id` = '" . abs(intval($order['orders_id'])) . "'");
-
-			// Add Order Status History Entry
-			$sql_data_array = array(
-				'orders_id'         => $order['orders_id'],
-				'orders_status_id'  => $order_status_id,
-				'date_added'        => 'now()',
-				'customer_notified' => '1',
-				'comments'          =>
-					sprintf(
-						"[Notification]" .  PHP_EOL .
-						"- Unique ID: %s" . PHP_EOL .
-						"- Status: %s".     PHP_EOL .
-                        "- Message: %s",
-						$reconcile->unique_id,
-						$reconcile->status,
-                        $reconcile->message
-					),
+			static::setOrderStatus(
+				$order_id,
+				$order_status_id
 			);
 
-			tep_db_perform(TABLE_ORDERS_STATUS_HISTORY, $sql_data_array);
+			$this->addOrderNotificationHistory(
+				$order_id,
+				$order_status_id,
+				$reconcile
+			);
 		}
 
-        $notification->renderResponse();
+		$data = array(
+			'unique_id' => $reconcile->unique_id,
+			'status'    => $reconcile->status,
+			'currency'  => $reconcile->currency,
+			'amount'    => $reconcile->amount,
+			'timestamp' => $timestamp,
+		);
+
+		$this->doPopulateTransaction($data);
+
+		return true;
 	}
 }
+
+$notification = new emerchantpay_checkout_notification();
+
+$notification->handleNotification($_POST);
 
 exit(0);

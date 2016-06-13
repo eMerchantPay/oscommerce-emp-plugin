@@ -5,7 +5,7 @@
  * Contains eMerchantPay Checkout Payment Logic
  *
  * @license     http://opensource.org/licenses/MIT The MIT License
- * @copyright   2015 eMerchantPay Ltd.
+ * @copyright   2016 eMerchantPay Ltd.
  * @version     $Id:$
  * @since       1.1.0
  */
@@ -13,151 +13,216 @@
 /**
  * eMerchantPay Checkout
  *
- * Main class, instantiated by osCommerce providing
+ * Main class, instantiated by eMerchantPay providing
  * necessary methods to facilitate payments through
  * eMerchantPay's Payment Gateway
  */
-class emerchantpay_checkout
+
+if (!class_exists('emerchantpay_method_base')) {
+	require_once DIR_FS_CATALOG . "ext/modules/payment/emerchantpay/method_base.php";
+}
+
+class emerchantpay_checkout extends emerchantpay_method_base
 {
-    /**
-     * Is this module Enabled?
-     *
-     * @var bool|mixed
-     */
-    public $enabled = false;
-
-    /**
-     * Payment method code
-     *
-     * @var string
-     */
-    public $code            = null;
-
-    /**
-     * Payment method title
-     *
-     * @var string
-     */
-    public $title           = null;
-
-    /**
-     * Payment method (customer) title
-     *
-     * @var string
-     */
-    public $public_title    = null;
-
-    /**
-     * Payment method description
-     *
-     * @var string
-     */
-    public $description     = null;
-
-    /**
-     * Payment method sort (display) order
-     *
-     * @var string
-     */
-    public $sort_order      = null;
-
-    /**
-     * Payment method's order status
-     *
-     * @var string
-     */
-    public $order_status    = null;
-
-    /**
-     * Store the order GLOBAL variable as private
-     *
-     * @var array|null|order
-     */
-    private $order;
-
-    function __construct()
-    {
-        require DIR_FS_CATALOG . '/includes/apps/emerchantpay/libs/genesis/vendor/autoload.php';
-
-        $this->init();
-    }
-
-	// class constructor
-	function init() {
-		global $order;
-
-		$this->signature 	= "emerchantpay|emerchantpay_checkout|1.2.5";
-		$this->code 		= "emerchantpay_checkout";
-		$this->api_version 	= "1.4";
-
-		$this->title 		= $this->getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_TEXT_TITLE');
-		$this->public_title = $this->getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_TEXT_PUBLIC_TITLE');
-		$this->description 	= $this->getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_TEXT_DESCRIPTION');
-		$this->sort_order 	= $this->getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_SORT_ORDER');
-
-		$this->enabled 		= $this->getBoolConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_STATUS');
-
-		$this->order        = $order;
-
-		if ( isset($this->order) && is_object($this->order) ) {
-			$this->update_status();
-		}
-
-		if (intval($this->getConst('MODULE_PAYMENT_EMERCHANTPAY_ORDER_STATUS_ID')) > 0) {
-			$this->order_status = $this->getConst('MODULE_PAYMENT_EMERCHANTPAY_ORDER_STATUS_ID');
-		}
-
-		// Set the Gateway Credentials
-		$this->setCredentials();
-	}
-
-	// class methods
-	function update_status()
+	/**
+	 * emerchantpay_checkout constructor.
+	 */
+	public function __construct()
 	{
-		if ( ($this->enabled == true) && (intval($this->getConst('MODULE_PAYMENT_EMERCHANTPAY_ZONE')) > 0) ) {
-			$check_flag = false;
+		$this->code = static::EMERCHANTPAY_CHECKOUT_METHOD_CODE;
+		parent::__construct();
+	}
 
-			$check_query = tep_db_query("SELECT zone_id FROM " . TABLE_ZONES_TO_GEO_ZONES . " WHERE geo_zone_id = '" . $this->getConst('MODULE_PAYMENT_EMERCHANTPAY_ZONE') . "' AND zone_country_id = '" . $this->order->billing['country']['id'] . "' ORDER BY zone_id");
+	/**
+	 * Get If Module Requires SSL or not
+	 * @return bool
+	 */
+	protected function getModuleRequiresSSL()
+	{
+		return false;
+	}
 
-			while ($check = tep_db_fetch_array($check_query)) {
-				if (isset($check['zone_id']) && $check['zone_id'] < 1) {
-					$check_flag = true;
-					break;
-				}
-				elseif ($check['zone_id'] == $this->order->billing['zone_id']) {
-					$check_flag = true;
-					break;
+	/**
+	 * Get Transactions Table name for the Payment Module
+	 * @return string
+	 */
+	protected function getTableNameTransactions()
+	{
+		return static::EMERCHANTPAY_CHECKOUT_TRANSACTIONS_TABLE_NAME;
+	}
+
+	/**
+	 * Determines if the Module Admin Settings are properly configured
+	 * @return bool
+	 */
+	protected function getIsConfigured()
+	{
+		return
+			parent::getIsConfigured() &&
+			!empty($this->getSetting('TRANSACTION_TYPES'));
+	}
+
+	/**
+	 * Process Request to the Gateway
+	 * @return bool
+	 */
+	protected function doBeforeProcessPayment()
+	{
+		global $order, $messageStack;
+
+		$data = new stdClass();
+		$data->transaction_id = $this->getGeneratedTransactionId();
+		$data->description = '';
+
+		foreach ($order->products as $product) {
+			$separator = ($product == end($order->products)) ? '' : PHP_EOL;
+
+			$data->description .= $product['qty'] . ' x ' . $product['name'] . $separator;
+		}
+
+		$data->currency = $order->info['currency'];
+
+		$data->language_id = $this->getSetting('LANGUAGE');
+
+		$data->urls = array(
+			'notification'   =>
+				$this->getNotificationUrl(),
+			'return_success' =>
+				$this->getReturnUrl(static::ACTION_SUCCESS),
+			'return_failure' =>
+				$this->getReturnUrl(static::ACTION_FAILURE),
+			'return_cancel' =>
+				$this->getReturnUrl(static::ACTION_CANCEL)
+		);
+
+		$data->order = $order;
+
+		$errorMessage = null;
+
+		try {
+			$this->responseObject = $this->pay($data);
+
+			return true;
+		} catch (\Genesis\Exceptions\ErrorAPI $api) {
+			$errorMessage = $api->getMessage();
+			$this->responseObject = null;
+		} catch (\Genesis\Exceptions\ErrorNetwork $e) {
+			$errorMessage = $this->getSetting("MESSAGE_CHECK_CREDENTIALS") .
+				PHP_EOL .
+				$e->getMessage();
+			$this->responseObject = null;
+		} catch (\Exception $e) {
+			$errorMessage = $e->getMessage();
+			$this->responseObject = null;
+		}
+
+		if (empty($this->responseObject) && !empty($errorMessage)) {
+			$messageStack->add_session($errorMessage, 'error');
+			tep_redirect(
+				tep_href_link(
+					FILENAME_CHECKOUT_PAYMENT,
+					'payment_error=' . get_class($this),
+					'SSL'
+				)
+			);
+		}
+
+		return false;
+	}
+
+	/**
+	 * Send transaction to Genesis
+	 *
+	 * @param stdClass $data
+	 * @return stdClass
+	 * @throws Exception
+	 * @throws \Genesis\Exceptions\ErrorAPI
+	 */
+	protected function pay($data)
+	{
+		$genesis = new \Genesis\Genesis('WPF\Create');
+
+		$genesis
+			->request()
+				->setTransactionId($data->transaction_id)
+				->setUsage('osCommerce Electronic Transaction')
+				->setDescription($data->description)
+				->setNotificationUrl($data->urls['notification'])
+				->setReturnSuccessUrl($data->urls['return_success'])
+				->setReturnFailureUrl($data->urls['return_failure'])
+				->setReturnCancelUrl($data->urls['return_cancel'])
+				->setCurrency($data->currency)
+				->setAmount($data->order->info['total'])
+				->setCustomerEmail($data->order->customer['email_address'])
+				->setCustomerPhone($data->order->customer['telephone'])
+				->setBillingFirstName($data->order->billing['firstname'])
+				->setBillingLastName($data->order->billing['lastname'])
+				->setBillingAddress1($data->order->billing['street_address'])
+				->setBillingZipCode($data->order->billing['postcode'])
+				->setBillingCity($data->order->billing['city'])
+				->setBillingCountry($data->order->billing['country']['iso_code_2'])
+				->setShippingFirstName($data->order->delivery['firstname'])
+				->setShippingLastName($data->order->delivery['lastname'])
+				->setShippingAddress1($data->order->delivery['street_address'])
+				->setShippingZipCode($data->order->delivery['postcode'])
+				->setShippingCity($data->order->delivery['city'])
+				->setShippingCountry($data->order->delivery['country']['iso_code_2'])
+				->setLanguage($data->language_id);
+
+		foreach (static::getCheckoutTransactionTypes() as $transaction) {
+			if (is_array($transaction)) {
+				$genesis
+					->request()
+						->addTransactionType(
+							$transaction['name'],
+							$transaction['parameters']
+						);
+			} else {
+				if (\Genesis\API\Constants\Transaction\Types::isPayByVoucher($transaction)) {
+					$parameters = [
+						'card_type' =>
+							\Genesis\API\Constants\Transaction\Parameters\PayByVouchers\CardTypes::VIRTUAL,
+						'redeem_type' =>
+							\Genesis\API\Constants\Transaction\Parameters\PayByVouchers\RedeemTypes::INSTANT
+					];
+					if ($transaction == \Genesis\API\Constants\Transaction\Types::PAYBYVOUCHER_YEEPAY) {
+						$parameters['product_name'] 	= $data->description;
+						$parameters['product_category'] = $data->description;
+					}
+					$genesis
+						->request()
+							->addTransactionType($transaction, $parameters);
+				} else {
+					$genesis
+						->request()
+							->addTransactionType($transaction);
 				}
 			}
+		}
 
-			if ($check_flag == false) {
-				$this->enabled = false;
-			}
+		$genesis->execute();
+
+		return $genesis->response()->getResponseObject();
+	}
+
+	/**
+	 * Generates Admin Order Transactions Panel
+	 * @param int $order_id
+	 * @return null|string
+	 */
+	public function displayTransactionsPanel($order_id)
+	{
+		if ($this->getIsAvailable()) {
+			return parent::displayTransactionsPanel($order_id);
+		} else {
+			return false;
 		}
 	}
 
-	function javascript_validation() {
-		return false;
-	}
-
-	function selection()
-    {
-		return array(
-			'id'    => $this->code,
-			'module'=> $this->title
-		);
-	}
-
-	function checkout_initialization_method()
-    {
-        return false;
-	}
-
-	function pre_confirmation_check()
-    {
-		return false;
-	}
-
+	/**
+	 * Confirmation Check mothod for Checkout Confirmation Page
+	 * @return bool
+	 */
 	function confirmation()
 	{
         ?>
@@ -170,168 +235,24 @@ class emerchantpay_checkout
         </script>
 
         <p style="text-align:center;">
-            <?php echo $this->getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_TEXT_REDIRECT_WARNING'); ?>
+            <?php echo $this->getSetting('TEXT_REDIRECT_WARNING'); ?>
         </p>
         <?php
 
 		return false;
 	}
 
-	function process_button()
-	{
-		return false;
-	}
-
-	function before_process()
-	{
-		return false;
-	}
-
-    function output_error()
-    {
-        return false;
-    }
-
-	function get_error()
-    {
-		return array(
-			'title' => $this->getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_ERROR_TITLE'),
-			'error' => $this->getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_ERROR_DESC')
-		);
-	}
-
-	function after_process()
-    {
-		global $insert_id, $cartID, $order, $currency;
-
-		// Update the ORDER, for total
-		$this->order = $order;
-
-		$transaction_id = sprintf('%s-%s', $insert_id, md5($cartID . microtime(true)));
-
-		$description = '';
-
-		foreach ($order->products as $product) {
-			$separator = ($product == end($order->products)) ? '' : PHP_EOL;
-
-			$description .= $product['qty'] . ' x ' . $product['name'] . $separator;
-		}
-
-		$currency = isset($currency) ? $currency : $this->order->info['currency'];
-
-        $language_id = $this->getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_LANGUAGE')
-            ? $this->getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_LANGUAGE')
-            : 'en';
-
-		$urls = array(
-			'notification'   =>
-				tep_href_link('ext/modules/payment/emerchantpay/checkout.php', '', 'SSL'),
-			'return_success' =>
-				tep_href_link('ext/modules/payment/emerchantpay/redirect.php', 'return=success', 'SSL'),
-			'return_failure' =>
-				tep_href_link('ext/modules/payment/emerchantpay/redirect.php', 'return=failure', 'SSL'),
-			'return_cancel' =>
-				tep_href_link('ext/modules/payment/emerchantpay/redirect.php', 'return=cancel', 'SSL'),
-		);
-
-		try {
-			$genesis = new \Genesis\Genesis('WPF\Create');
-
-			$genesis
-				->request()
-					->setTransactionId($transaction_id)
-					->setUsage('osCommerce Electronic Transaction')
-					->setDescription($description)
-					->setNotificationUrl($urls['notification'])
-					->setReturnSuccessUrl($urls['return_success'])
-					->setReturnFailureUrl($urls['return_failure'])
-					->setReturnCancelUrl($urls['return_cancel'])
-					->setCurrency($currency)
-					->setAmount($this->order->info['total'])
-					->setCustomerEmail($this->order->customer['email_address'])
-					->setCustomerPhone($this->order->customer['telephone'])
-					->setBillingFirstName($this->order->billing['firstname'])
-					->setBillingLastName($this->order->billing['lastname'])
-					->setBillingAddress1($this->order->billing['street_address'])
-					->setBillingZipCode($this->order->billing['postcode'])
-					->setBillingCity($this->order->billing['city'])
-					->setBillingCountry($this->order->billing['country']['iso_code_2'])
-					->setShippingFirstName($this->order->delivery['firstname'])
-					->setShippingLastName($this->order->delivery['lastname'])
-					->setShippingAddress1($this->order->delivery['street_address'])
-					->setShippingZipCode($this->order->delivery['postcode'])
-					->setShippingCity($this->order->delivery['city'])
-					->setShippingCountry($this->order->delivery['country']['iso_code_2'])
-                    ->setLanguage($language_id);
-
-            foreach ($this->get_checkout_transaction_types() as $type) {
-                if (is_array($type)) {
-                    $genesis
-                        ->request()
-                            ->addTransactionType($type['name'], $type['parameters']);
-                } else {
-                    $genesis
-                        ->request()
-                            ->addTransactionType($type);
-                }
-            }
-
-			$genesis->execute();
-
-            tep_redirect($genesis->response()->getResponseObject()->redirect_url);
-		}
-		catch (\Exception $e) {
-            tep_redirect(
-                tep_href_link(
-                    FILENAME_CHECKOUT_PAYMENT , 'payment_error=' . get_class($this),
-                    'SSL'
-                )
-            );
-		}
-	}
-
-	function setCredentials()
-    {
-        \Genesis\Config::setEndpoint(
-            \Genesis\API\Constants\Endpoints::EMERCHANTPAY
-        );
-
-		\Genesis\Config::setUsername(
-			$this->getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_USERNAME')
-		);
-		\Genesis\Config::setPassword(
-			$this->getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_PASSWORD')
-		);
-
-		$isInStagingMode = $this->getBoolConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_ENVIRONMENT');
-
-		\Genesis\Config::setEnvironment(
-			$isInStagingMode
-				? \Genesis\API\Constants\Environments::STAGING
-				: \Genesis\API\Constants\Environments::PRODUCTION
-		);
-	}
-
-	function getConst($var)
-    {
-		return defined($var) ? constant($var) : '';
-	}
-
-	function getBoolConst($var)
-	{
-		return filter_var(
-			$this->getConst($var),
-			FILTER_VALIDATE_BOOLEAN
-		);
-	}
-
-    function get_checkout_transaction_types()
+	/**
+	 * Get a list with the selected Transaction Type
+	 * @return array
+	 */
+    function getCheckoutTransactionTypes()
     {
         $processed_list = array();
 
         $selected_types = array_map(
 			'trim',
-            explode(',', $this->getConst('MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_TRANSACTION_TYPE'))
+            explode(',', $this->getSetting('TRANSACTION_TYPES'))
         );
 
         $alias_map = array(
@@ -368,120 +289,135 @@ class emerchantpay_checkout
         return $processed_list;
     }
 
-	function check() {
-		if (!isset($this->_check)) {
-			$check_query = tep_db_query("SELECT configuration_value FROM " . TABLE_CONFIGURATION . " WHERE configuration_key = 'MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_STATUS'");
-			$this->_check = tep_db_num_rows($check_query);
-		}
+	/**
+	 * Builds a list of the available admin setting
+	 * @return array
+	 */
+	protected function getConfigurationValues()
+	{
+		$configurationValues = array(
+			array(
+				"Checkout Title",
+				$this->getSettingKey('CHECKOUT_PAGE_TITLE'),
+				"Pay safely with eMerchantPay Checkout",
+				"This name will be displayed on the checkout page",
+				"1",
+				"10",
+				"emp_zfg_draw_input(null, ",
+				null
+			),
+			array(
+				"Transaction Types",
+				$this->getSettingKey("TRANSACTION_TYPES"),
+				\Genesis\API\Constants\Transaction\Types::SALE,
+				"What transaction type should we use upon purchase?.",
+				"3",
+				"60",
+				"emp_zfg_select_drop_down_multiple_from_object({$this->requiredOptionsAttributes}, \"{$this->code}\", \"getConfigTransactionTypesOptions\", ",
+				null
+			),
+			array(
+				"Checkout Page Language",
+				$this->getSettingKey('LANGUAGE'),
+				"en",
+				"What language (localization) should we have on the Checkout?.",
+				"4",
+				"65",
+				"emp_zfg_select_drop_down_single_from_object(\"{$this->code}\", \"getConfigLanguageOptions\",",
+				null
+			),
 
-		return $this->_check;
+		);
+
+		return array_merge(
+			parent::getConfigurationValues(),
+			$configurationValues
+		);
 	}
 
-	function install()
-    {
-		// Delete any previous leftovers
-		$this->remove();
+	/**
+	 * Builds a list with the available Transaction Types & Payment Methods
+	 * @return string
+	 */
+	public function getConfigTransactionTypesOptions()
+	{
+		$transactionTypes = array(
+			\Genesis\API\Constants\Transaction\Types::ABNIDEAL            => "ABN iDEAL",
+			\Genesis\API\Constants\Transaction\Types::AUTHORIZE           => "Authorize",
+			\Genesis\API\Constants\Transaction\Types::AUTHORIZE_3D        => "Authorize 3D",
+			\Genesis\API\Constants\Transaction\Types::CASHU               => "CashU",
+			\Genesis\API\Constants\Payment\Methods::EPS                   => "eps",
+			\Genesis\API\Constants\Payment\Methods::GIRO_PAY              => "GiroPay",
+			\Genesis\API\Constants\Transaction\Types::NETELLER            => "Neteller",
+			\Genesis\API\Constants\Payment\Methods::QIWI                  => "Qiwi",
+			\Genesis\API\Constants\Transaction\Types::PAYBYVOUCHER_SALE   => "PayByVoucher (Sale)",
+			\Genesis\API\Constants\Transaction\Types::PAYBYVOUCHER_YEEPAY => "PayByVoucher (oBeP)",
+			\Genesis\API\Constants\Transaction\Types::PAYSAFECARD         => "PaySafeCard",
+			\Genesis\API\Constants\Payment\Methods::PRZELEWY24            => "Przelewy24",
+			\Genesis\API\Constants\Transaction\Types::POLI                => "POLi",
+			\Genesis\API\Constants\Payment\Methods::SAFETY_PAY            => "SafetyPay",
+			\Genesis\API\Constants\Transaction\Types::SALE                => "Sale",
+			\Genesis\API\Constants\Transaction\Types::SALE_3D             => "Sale 3D",
+			\Genesis\API\Constants\Transaction\Types::SOFORT              => "SOFORT",
+			\Genesis\API\Constants\Payment\Methods::TELEINGRESO           => "teleingreso",
+			\Genesis\API\Constants\Payment\Methods::TRUST_PAY             => "TrustPay",
+			\Genesis\API\Constants\Transaction\Types::WEBMONEY            => "WebMoney"
+		);
 
-		// Insert our custom statuses
-		foreach ($this->statuses() as $status) {
-			$this->updateStatuses($status);
-		}
-
-        $transaction_types = array(
-            \Genesis\API\Constants\Transaction\Types::ABNIDEAL,
-            \Genesis\API\Constants\Transaction\Types::CASHU,
-            \Genesis\API\Constants\Payment\Methods::EPS,
-            \Genesis\API\Constants\Payment\Methods::GIRO_PAY,
-            \Genesis\API\Constants\Transaction\Types::NETELLER,
-            \Genesis\API\Constants\Payment\Methods::QIWI,
-            \Genesis\API\Constants\Transaction\Types::PAYBYVOUCHER_SALE,
-            \Genesis\API\Constants\Transaction\Types::PAYBYVOUCHER_YEEPAY,
-            \Genesis\API\Constants\Transaction\Types::PAYSAFECARD,
-            \Genesis\API\Constants\Payment\Methods::PRZELEWY24,
-            \Genesis\API\Constants\Transaction\Types::POLI,
-            \Genesis\API\Constants\Payment\Methods::SAFETY_PAY,
-            \Genesis\API\Constants\Transaction\Types::SALE,
-            \Genesis\API\Constants\Transaction\Types::SALE_3D,
-            \Genesis\API\Constants\Transaction\Types::SOFORT,
-            \Genesis\API\Constants\Payment\Methods::TELEINGRESO,
-            \Genesis\API\Constants\Payment\Methods::TRUST_PAY,
-            \Genesis\API\Constants\Transaction\Types::WEBMONEY
-        );
-
-        $languages = array(
-            'en', 'it', 'es', 'fr', 'de', 'ja', 'zh', 'ar', 'pt', 'tr', 'ru', 'hi', 'bg'
-        );
-
-		tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('EnableEnable eMerchantPay Checkout Module', 'MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_STATUS', 'True', 'Do you want to process payments via eMerchantPays Genesis Gateway?', '6', '3', 'tep_cfg_select_option(array(\'True\', \'False\'), ', now())");
-		tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('Genesis API Username', 'MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_USERNAME', 'Enter your Genesis Username here', '', '6', '4', now())");
-		tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('Genesis API Password', 'MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_PASSWORD', 'Enter your Genesis Password here', '', '6', '4', now())");
-		tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Test Mode', 'MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_ENVIRONMENT', 'True', 'If enabled, transactions are going through our Staging (Test) server, NO MONEY ARE BEING TRANSFERRED', '6', '3', 'tep_cfg_select_option(array(\'True\', \'False\'), ', now())");
-        tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Transaction Type', 'MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_TRANSACTION_TYPE', 'sale', 'What transaction type should we use upon purchase?.', '6', '0', 'tep_cfg_select_option(array(\'" . implode("\',\'", $transaction_types) . "\'),', now())");
-        tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, date_added) values ('Checkout Page Language', 'MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_LANGUAGE', 'en', 'What language (localization) should we have on the Checkout?.', '6', '0', 'tep_cfg_select_option(array(\'" . implode("\',\'", $languages) . "\'),', now())");
-        tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, date_added) values ('Sort order of display.', 'MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_SORT_ORDER', '0', 'Sort order of display. Lowest is displayed first.', '6', '0', now())");
-		tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, use_function, set_function, date_added) values ('Payment Zone', 'MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_ZONE', '0', 'If a zone is selected, only enable this payment method for that zone.', '6', '2', 'tep_get_zone_class_title', 'tep_cfg_pull_down_zone_classes(', now())");
-		tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, use_function, date_added) values ('Set Default Order Status', 'MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_ORDER_STATUS_ID', '1', 'Set the default status of orders made with this payment module to this value', '6', '0', 'tep_cfg_pull_down_order_statuses(', 'tep_get_order_status_name', now())");
-		tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, use_function, date_added) values ('Set Failed Order Status', 'MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_FAILED_ORDER_STATUS_ID', '1', 'Set the status of failed orders made with this payment module to this value', '6', '0', 'tep_cfg_pull_down_order_statuses(', 'tep_get_order_status_name', now())");
-		tep_db_query("insert into " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, use_function, date_added) values ('Set Processed Order Status', 'MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_PROCESSED_ORDER_STATUS_ID', '2', 'Set the status of processed orders made with this payment module to this value', '6', '0', 'tep_cfg_pull_down_order_statuses(', 'tep_get_order_status_name', now())");
+		return $this->buildSettingsDropDownOptions(
+			$transactionTypes
+		);
 	}
 
-	function remove()
-    {
-		// include the list of project database tables (If there are not included yet)
-		if (!defined('TABLE_CONFIGURATION') && defined('DIR_WS_INCLUDES'))
-		{
-			require(DIR_WS_INCLUDES . 'database_tables.php');
-		}
+	/**
+	 * Builds a list with the available Checkout Languages
+	 * @return string
+	 */
+	public function getConfigLanguageOptions()
+	{
+		$languages = array(
+			'en' => 'English',
+			'it' => 'Italian',
+			'es' => 'Spanish',
+			'fr' => 'French',
+			'de' => 'German',
+			'ja' => 'Japanese',
+			'zh' => 'Chinese',
+			'ar' => 'Arabic',
+			'pt' => 'Portuguese',
+			'tr' => 'Turkish',
+			'ru' => 'Russian',
+			'hi' => 'Hindi',
+			'bg' => 'Bulgarian'
+		);
 
-		if (defined('TABLE_CONFIGURATION'))
-			tep_db_query("delete from " . TABLE_CONFIGURATION . " where configuration_key in ('" . implode("', '", $this->keys()) . "')");
+		return $this->buildSettingsDropDownOptions(
+			$languages
+		);
 	}
 
-	function updateStatuses($status_name)
-    {
-		$status_query = tep_db_query("select orders_status_id from " . TABLE_ORDERS_STATUS . " where orders_status_name = '" . $status_name . "' limit 1");
-
-		if (tep_db_num_rows($status_query) < 1) {
-			$status_query = tep_db_query("select max(orders_status_id) as status_id from " . TABLE_ORDERS_STATUS);
-			$status = tep_db_fetch_array($status_query);
-
-			$status_id = $status['status_id'] + 1;
-
-			$languages = tep_get_languages();
-
-			foreach ($languages as $lang) {
-				tep_db_query("insert into " . TABLE_ORDERS_STATUS . " (orders_status_id, language_id, orders_status_name, public_flag) values ('" . $status_id . "', '" . $lang['id'] . "', '" . $status_name . "', '1')");
-			}
-		} else {
-			$check = tep_db_fetch_array($status_query);
-
-			$status_id = $check['orders_status_id'];
-		}
-
-		return $status_id;
-	}
-
+	/**
+	 * Get a list with all available Admin Settings for the Module
+	 * @return array
+	 */
 	function keys() {
-		return array(
-			'MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_STATUS',
-			'MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_USERNAME',
-			'MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_PASSWORD',
-			'MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_ENVIRONMENT',
-			'MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_TRANSACTION_TYPE',
-            'MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_LANGUAGE',
-			'MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_SORT_ORDER',
-			'MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_ZONE',
-			'MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_ORDER_STATUS_ID',
-			'MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_FAILED_ORDER_STATUS_ID',
-			'MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_PROCESSED_ORDER_STATUS_ID'
-		);
-	}
+		$keys = parent::keys();
 
-	function statuses() {
-		return array(
-			'Payment failed',
-			'Payment complete'
+		$this->appendSettingKeys(
+			$keys,
+			array(
+				'STATUS',
+				'ENVIRONMENT',
+				'TRANSACTION_TYPES'
+			),
+			array(
+				'CHECKOUT_PAGE_TITLE',
+				'TRANSACTION_TYPES',
+				'LANGUAGE'
+			)
 		);
+
+		return $keys;
 	}
 }
 
