@@ -160,12 +160,14 @@ class emerchantpay_checkout extends emerchantpay_method_base
 				->setBillingAddress1($data->order->billing['street_address'])
 				->setBillingZipCode($data->order->billing['postcode'])
 				->setBillingCity($data->order->billing['city'])
+				->setBillingState($this->getStateCode($data->order->billing))
 				->setBillingCountry($data->order->billing['country']['iso_code_2'])
 				->setShippingFirstName($data->order->delivery['firstname'])
 				->setShippingLastName($data->order->delivery['lastname'])
 				->setShippingAddress1($data->order->delivery['street_address'])
 				->setShippingZipCode($data->order->delivery['postcode'])
 				->setShippingCity($data->order->delivery['city'])
+				->setShippingState($this->getStateCode($data->order->delivery))
 				->setShippingCountry($data->order->delivery['country']['iso_code_2'])
 				->setLanguage($data->language_id);
 
@@ -301,7 +303,7 @@ class emerchantpay_checkout extends emerchantpay_method_base
 				$this->getSettingKey('CHECKOUT_PAGE_TITLE'),
 				"Pay safely with eMerchantPay Checkout",
 				"This name will be displayed on the checkout page",
-				"1",
+				"6",
 				"10",
 				"emp_zfg_draw_input(null, ",
 				null
@@ -311,7 +313,7 @@ class emerchantpay_checkout extends emerchantpay_method_base
 				$this->getSettingKey("TRANSACTION_TYPES"),
 				\Genesis\API\Constants\Transaction\Types::SALE,
 				"What transaction type should we use upon purchase?.",
-				"3",
+				"6",
 				"60",
 				"emp_zfg_select_drop_down_multiple_from_object({$this->requiredOptionsAttributes}, \"{$this->code}\", \"getConfigTransactionTypesOptions\", ",
 				null
@@ -321,7 +323,7 @@ class emerchantpay_checkout extends emerchantpay_method_base
 				$this->getSettingKey('LANGUAGE'),
 				"en",
 				"What language (localization) should we have on the Checkout?.",
-				"4",
+				"6",
 				"65",
 				"emp_zfg_select_drop_down_single_from_object(\"{$this->code}\", \"getConfigLanguageOptions\",",
 				null

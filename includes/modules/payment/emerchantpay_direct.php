@@ -304,6 +304,15 @@ class emerchantpay_direct extends emerchantpay_method_base
 					'SSL'
 				)
 			);
+		} elseif ($this->responseObject->status == 'declined') {
+			$messageStack->add_session($this->responseObject->message, 'error');
+			tep_redirect(
+				tep_href_link(
+					FILENAME_CHECKOUT_PAYMENT,
+					'payment_error=' . get_class($this),
+					'SSL'
+				)
+			);
 		}
 
 		return false;
@@ -357,14 +366,14 @@ class emerchantpay_direct extends emerchantpay_method_base
 					->setBillingAddress1( $data->order->billing['street_address'] )
 					->setBillingZipCode( $data->order->billing['postcode'] )
 					->setBillingCity( $data->order->billing['city'] )
-					->setBillingState( $data->order->billing['state'] )
+					->setBillingState( $this->getStateCode($data->order->billing) )
 					->setBillingCountry( $data->order->billing['country']['iso_code_2'] )
 					->setShippingFirstName( $data->order->delivery['firstname'] )
 					->setShippingLastName( $data->order->delivery['lastname'] )
 					->setShippingAddress1( $data->order->delivery['street_address'] )
 					->setShippingZipCode( $data->order->delivery['postcode'] )
 					->setShippingCity( $data->order->delivery['city'] )
-					->setShippingState( $data->order->delivery['state'] )
+					->setShippingState( $this->getStateCode($data->order->delivery) )
 					->setShippingCountry( $data->order->delivery['country']['iso_code_2'] );
 
 			if (isset($data->urls)) {
@@ -423,7 +432,7 @@ class emerchantpay_direct extends emerchantpay_method_base
 				$this->getSettingKey('CHECKOUT_PAGE_TITLE'),
 				"Pay safely with eMerchantPay Direct",
 				"This name will be displayed on the checkout page",
-				"1",
+                "6",
 				"10",
 				"emp_zfg_draw_input(null, ",
 				null
@@ -433,7 +442,7 @@ class emerchantpay_direct extends emerchantpay_method_base
 				$this->getSettingKey('TOKEN'),
 			    "",
 				"Enter your Token, required for accessing the Genesis Gateway",
-				"2",
+                "6",
 				"40",
 				"emp_zfg_draw_input({$this->requiredOptionsAttributes}, ",
 				null
@@ -443,7 +452,7 @@ class emerchantpay_direct extends emerchantpay_method_base
 				$this->getSettingKey("TRANSACTION_TYPE"),
 				\Genesis\API\Constants\Transaction\Types::SALE,
 				"What transaction type should we use upon purchase?.",
-				"3",
+                "6",
 				"60",
 				"emp_zfg_select_drop_down_single_from_object(\"{$this->code}\",\"getConfigTransactionTypesOptions\", ",
 				null
