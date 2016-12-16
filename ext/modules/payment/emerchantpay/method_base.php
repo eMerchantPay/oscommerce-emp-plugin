@@ -31,38 +31,38 @@ abstract class emerchantpay_method_base extends emerchantpay_base
      * Return Success Action
      * @const string
      */
-    const ACTION_SUCCESS = 'success';
+    const ACTION_SUCCESS    = 'success';
     /**
      * Return Failure Action
      * @const string
      */
-    const ACTION_FAILURE = 'failure';
+    const ACTION_FAILURE    = 'failure';
     /**
      * Return Cancel Action
      * @const string
      */
-    const ACTION_CANCEL  = 'cancel';
+    const ACTION_CANCEL     = 'cancel';
     /**
      * Return Module Version
      * @var string
      */
-    public $version = "1.3.0";
+    public $version         = "1.3.1";
     /**
      * Return Module Version
      * @var string
      */
-    public $signature = null;
+    public $signature       = null;
     /**
      * Return Genesis Client Version
      * @var string
      */
-    public $api_version = "1.4.3";
+    public $api_version     = null;
     /**
      * Is this module Enabled?
      *
      * @var bool|mixed
      */
-    public $enabled = false;
+    public $enabled         = false;
     /**
      * Payment method title
      *
@@ -153,6 +153,8 @@ abstract class emerchantpay_method_base extends emerchantpay_base
      */
     protected function init() {
         global $order;
+
+        $this->api_version  = \Genesis\Config::getVersion();
 
         $this->signature 	= sprintf(
             "emerchantpay|%s|%s",
@@ -1743,7 +1745,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
                 $this->getSettingKey('STATUS'),
                 "true",
                 "Do you want to process payments via eMerchantPays Genesis Gateway?",
-                "1",
+                "6",
                 "1",
                 "emp_zfg_draw_toggle(",
                 "emp_zfg_get_toggle_value"
@@ -1753,7 +1755,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
                 $this->getSettingKey('USERNAME'),
                 "",
                 "Enter your Username, required for accessing the Genesis Gateway",
-                "2",
+                "6",
                 "20",
                 "emp_zfg_draw_input({$this->requiredOptionsAttributes}, ",
                 null
@@ -1763,7 +1765,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
                 $this->getSettingKey('PASSWORD'),
                 "",
                 "Enter your Password, required for accessing the Genesis Gateway",
-                "2",
+                "6",
                 "30",
                 "emp_zfg_draw_input({$this->requiredOptionsAttributes}, ",
                 null
@@ -1773,7 +1775,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
                 $this->getSettingKey('ENVIRONMENT'),
                 "false",
                 "If disabled, transactions are going through our Staging (Test) server, NO MONEY ARE BEING TRANSFERRED",
-                "3",
+                "6",
                 "50",
                 "emp_zfg_draw_toggle(",
                 "emp_zfg_get_toggle_value"
@@ -1783,7 +1785,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
                 $this->getSettingKey('ALLOW_PARTIAL_CAPTURE'),
                 "true",
                 "Use this option to allow / deny Partial Capture Transactions",
-                "4",
+                "6",
                 "50",
                 "emp_zfg_draw_toggle(",
                 "emp_zfg_get_toggle_value"
@@ -1793,7 +1795,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
                 $this->getSettingKey('ALLOW_PARTIAL_REFUND'),
                 "true",
                 "Use this option to allow / deny Partial Refund Transactions",
-                "4",
+                "6",
                 "50",
                 "emp_zfg_draw_toggle(",
                 "emp_zfg_get_toggle_value"
@@ -1803,7 +1805,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
                 $this->getSettingKey('ALLOW_VOID_TRANSACTIONS'),
                 "true",
                 "Use this option to allow / deny Cancel Transactions",
-                "4",
+                "6",
                 "50",
                 "emp_zfg_draw_toggle(",
                 "emp_zfg_get_toggle_value"
@@ -1813,7 +1815,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
                 $this->getSettingKey('SORT_ORDER'),
                 "0",
                 "Sort order of display. Lowest is displayed first.",
-                "4",
+                "6",
                 "70",
                 "emp_zfg_draw_number_input({$this->sortOrderAttributes}, ",
                 null
@@ -1823,7 +1825,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
                 $this->getSettingKey('ZONE'),
                 "0",
                 "If a zone is selected, only enable this payment method for that zone.",
-                "5",
+                "6",
                 "75",
                 "emp_cfg_pull_down_zone_classes(",
                 "tep_get_zone_class_title"
@@ -1833,7 +1835,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
                 $this->getSettingKey('ORDER_STATUS_ID'),
                 "1",
                 "Set the default status of orders made with this payment module to this value",
-                "5",
+                "6",
                 "80",
                 "emp_zfg_pull_down_order_statuses(",
                 "tep_get_order_status_name"
@@ -1843,7 +1845,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
                 $this->getSettingKey('FAILED_ORDER_STATUS_ID'),
                 "1",
                 "Set the status of failed orders made with this payment module to this value",
-                "5",
+                "6",
                 "90",
                 "emp_zfg_pull_down_order_statuses(",
                 "tep_get_order_status_name"
@@ -1853,7 +1855,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
                 $this->getSettingKey('PROCESSED_ORDER_STATUS_ID'),
                 "2",
                 "Set the status of processed orders made with this payment module to this value",
-                "5",
+                "6",
                 "100",
                 "emp_zfg_pull_down_order_statuses(",
                 "tep_get_order_status_name"
@@ -1863,7 +1865,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
                 $this->getSettingKey('REFUNDED_ORDER_STATUS_ID'),
                 "1",
                 "Set the status of refunded orders made with this payment module",
-                "5",
+                "6",
                 "100",
                 "emp_zfg_pull_down_order_statuses(",
                 "tep_get_order_status_name"
@@ -1873,7 +1875,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
                 $this->getSettingKey('CANCELED_ORDER_STATUS_ID'),
                 "1",
                 "Set the status of canceled orders made with this payment module",
-                "5",
+                "6",
                 "100",
                 "emp_zfg_pull_down_order_statuses(",
                 "tep_get_order_status_name"
@@ -2339,5 +2341,27 @@ abstract class emerchantpay_method_base extends emerchantpay_base
     protected static function getGeneratedTransactionId()
     {
         return md5(uniqid() . microtime(true));
+    }
+
+
+    /**
+     * Gets state code (zone code) if available,
+     * otherwise gets state name (zone name)
+     *
+     * @param array $address
+     *
+     * @return string
+     */
+    protected static function getStateCode($address)
+    {
+        $state = $address['state'];
+
+        if (isset($address['country_id']) && tep_not_null($address['country_id'])) {
+            if (isset($address['zone_id']) && tep_not_null($address['zone_id'])) {
+            $state = tep_get_zone_code($address['country_id'], $address['zone_id'], $state);
+            }
+        }
+
+        return $state;
     }
 }
