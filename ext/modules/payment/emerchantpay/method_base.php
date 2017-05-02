@@ -46,7 +46,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
      * Return Module Version
      * @var string
      */
-    public $version         = "1.3.1";
+    public $version         = "1.3.2";
     /**
      * Return Module Version
      * @var string
