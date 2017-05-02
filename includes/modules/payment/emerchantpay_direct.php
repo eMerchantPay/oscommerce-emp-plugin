@@ -173,58 +173,25 @@ class emerchantpay_direct extends emerchantpay_method_base
 	 *
 	 */
 	public function validateCreditCardInfo($requestData)
-	{
-		global $messageStack;
+    {
+        if (!class_exists("cc_validation")) {
+            include(DIR_WS_CLASSES . 'cc_validation.php');
+        }
 
-		if (!class_exists("cc_validation")) {
-			include(DIR_WS_CLASSES . 'cc_validation.php');
-		}
+        $cc_validation = new cc_validation();
+        $cc_validation->validate(
+            $requestData['cc_number'],
+            $requestData['cc_expiry_month'],
+            $requestData['cc_expiry_year']
+        );
 
-		$cc_validation = new cc_validation();
-		$result = $cc_validation->validate(
-			$requestData['cc_number'],
-			$requestData['cc_expiry_month'],
-			$requestData['cc_expiry_year']
-		);
+        $this->cc_card_type    = $cc_validation->cc_type;
+        $this->cc_card_number  = $cc_validation->cc_number;
+        $this->cc_expiry_month = $cc_validation->cc_expiry_month;
+        $this->cc_expiry_year  = $cc_validation->cc_expiry_year;
 
-		$error = '';
-
-		switch ($result) {
-			case -1:
-				$error = sprintf(
-					TEXT_CCVAL_ERROR_UNKNOWN_CARD,
-					substr($cc_validation->cc_number, 0, 4)
-				);
-				break;
-
-			case -2:
-			case -3:
-			case -4:
-				$error = TEXT_CCVAL_ERROR_INVALID_DATE;
-				break;
-
-			case false:
-				$error = TEXT_CCVAL_ERROR_INVALID_NUMBER;
-				break;
-		}
-
-		if (($result == false) || ($result < 1)) {
-			$messageStack->add_session($error, 'error');
-
-			tep_redirect(
-				tep_href_link(
-					FILENAME_CHECKOUT_PAYMENT,
-					'payment_error=' . get_class($this),
-					'SSL'
-				)
-			);
-		}
-
-		$this->cc_card_type    = $cc_validation->cc_type;
-		$this->cc_card_number  = $cc_validation->cc_number;
-		$this->cc_expiry_month = $cc_validation->cc_expiry_month;
-		$this->cc_expiry_year  = $cc_validation->cc_expiry_year;
-	}
+        return true;
+    }
 
 	/**
 	 * Process Request to the Gateway
