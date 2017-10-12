@@ -7,13 +7,13 @@ Requirements
 ------------
 
 * osCommerce v2.x
-* [GenesisPHP v1.4.3](https://github.com/GenesisGateway/genesis_php) - (Integrated in Module)
+* [GenesisPHP v1.8.3](https://github.com/GenesisGateway/genesis_php/releases/tag/1.8.3) - (Integrated in Module)
 * PCI-certified server in order to use ```eMerchantPay Direct```
 
 GenesisPHP Requirements
 ------------
 
-* PHP version 5.3.2 or newer
+* PHP version 5.5.9 or newer
 * PHP Extensions:
     * [BCMath](https://php.net/bcmath)
     * [CURL](https://php.net/curl) (required, only if you use the curl network interface)
@@ -42,26 +42,41 @@ Supported Transactions & Payment Methods
 	* __Sale (3D-Secure)__
 
 * ```eMerchantPay Checkout``` Payment Method
+    * __Alipay__
     * __ABN iDEAL__
     * __Authorize__
     * __Authorize (3D-Secure)__
     * __CashU__
-    * __eps__
-    * __GiroPay__
+    * __Citadel__
+    * __eZeeWallet__
+    * __iDebit__
+    * __INPay__
+    * __InstaDebit__
     * __Neteller__
-    * __Qiwi__
+    * __P24__
     * __PayByVoucher (Sale)__
     * __PayByVoucher (oBeP)__
+    * __PayPal Express__
     * __PaySafeCard__
-    * __Przelewy24__
+    * __PaySec__
     * __POLi__
-    * __SafetyPay__
+    * __PPRO__
+    	* __eps__
+    	* __GiroPay__
+    	* __Qiwi__
+    	* __Przelewy24__
+    	* __SafetyPay__
+    	* __TeleIngreso__
+    	* __TrustPay__
+    	* __Mr.Cash__
+    	* __MyBank__
     * __Sale__
     * __Sale (3D-Secure)__
+    * __Sepa Direct Debit__
     * __SOFORT__
-    * __TeleIngreso__
-    * __TrustPay__
-    * __WebMoney__ 
+    * __Trustly__
+    * __WebMoney__
+    * __WeChat__
 
 Configure osCommerce over secured HTTPS Connection
 ------------
