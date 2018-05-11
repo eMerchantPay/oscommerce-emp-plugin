@@ -1,21 +1,21 @@
 <?php
 /**
- * eMerchantPay Direct
+ * emerchantpay Direct
  *
- * Contains eMerchantPay Direct Payment Logic
+ * Contains emerchantpay Direct Payment Logic
  *
  * @license     http://opensource.org/licenses/MIT The MIT License
- * @copyright   2016 eMerchantPay Ltd.
+ * @copyright   2018 emerchantpay Ltd.
  * @version     $Id:$
  * @since       1.1.0
  */
 
 /**
- * eMerchantPay Direct
+ * emerchantpay Direct
  *
- * Main class, instantiated by eMerchantPay providing
+ * Main class, instantiated by emerchantpay providing
  * necessary methods to facilitate payments through
- * eMerchantPay's Payment Gateway
+ * emerchantpay's Payment Gateway
  */
 
 use Genesis\API\Constants\Transaction\Types;
@@ -379,7 +379,7 @@ class emerchantpay_direct extends emerchantpay_method_base
             array(
                 'Checkout Title',
                 $this->getSettingKey('CHECKOUT_PAGE_TITLE'),
-                'Pay safely with eMerchantPay Direct',
+                'Pay safely with emerchantpay Direct',
                 'This name will be displayed on the checkout page',
                 '6',
                 '10',

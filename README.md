@@ -1,14 +1,14 @@
-eMerchantPay Gateway Module for osCommerce
+emerchantpay Gateway Module for osCommerce
 =============================
 
-This is a Payment Module for osCommerce, that gives you the ability to process payments through eMerchantPay's Payment Gateway - Genesis.
+This is a Payment Module for osCommerce, that gives you the ability to process payments through emerchantpay's Payment Gateway - Genesis.
 
 Requirements
 ------------
 
 * osCommerce v2.x
 * [GenesisPHP v1.8.3](https://github.com/GenesisGateway/genesis_php/releases/tag/1.8.3) - (Integrated in Module)
-* PCI-certified server in order to use ```eMerchantPay Direct```
+* PCI-certified server in order to use ```emerchantpay Direct```
 
 GenesisPHP Requirements
 ------------
@@ -30,18 +30,18 @@ Installation
 * Login inside the ```Administration``` area
 * Make sure the Web User have write permissions to the following file ```<admin>/orders.php```, because it will be extended to allow managing order transactions
 * Navigate to ```Modules``` -> ```Payment``` and click ```Install Module``` button
-* Select the ```eMerchantPay Checkout``` or ```eMerchantPay Direct``` module and click ```Install Module```
+* Select the ```emerchantpay Checkout``` or ```emerchantpay Direct``` module and click ```Install Module```
 * Set your credentials click ```Save```
 
 Supported Transactions & Payment Methods
 ---------------------
-* ```eMerchantPay Direct``` Payment Method
+* ```emerchantpay Direct``` Payment Method
 	* __Authorize__
 	* __Authorize (3D-Secure)__
 	* __Sale__
 	* __Sale (3D-Secure)__
 
-* ```eMerchantPay Checkout``` Payment Method
+* ```emerchantpay Checkout``` Payment Method
     * __Alipay__
     * __ABN iDEAL__
     * __Authorize__
@@ -80,7 +80,7 @@ Supported Transactions & Payment Methods
 
 Configure osCommerce over secured HTTPS Connection
 ------------
-_Note:_ This steps should be followed if you wish to use the ```eMerchantPay Direct``` Method
+_Note:_ This steps should be followed if you wish to use the ```emerchantpay Direct``` Method
 
 * Ensure you have installed a valid SSL Certificate on your __PCI-DSS Certified__ Web Server and you have configured your __Virtual Host__ properly.
 * Edit your Admin Configuration file ```<your-admin-folder>/includes/configure.php```

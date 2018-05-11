@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright (C) 2016 eMerchantPay Ltd.
+ * Copyright (C) 2018 emerchantpay Ltd.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -12,8 +12,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * @author      eMerchantPay
- * @copyright   2016 eMerchantPay Ltd.
+ * @author      emerchantpay
+ * @copyright   2018 emerchantpay Ltd.
  * @license     http://opensource.org/licenses/gpl-2.0.php GNU General Public License, version 2 (GPL-2.0)
  */
 
@@ -46,7 +46,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
      * Return Module Version
      * @var string
      */
-    public $version         = "1.4.0";
+    public $version         = "1.5.0";
     /**
      * Return Module Version
      * @var string
@@ -1747,7 +1747,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
                 "Enable Module",
                 $this->getSettingKey('STATUS'),
                 "true",
-                "Do you want to process payments via eMerchantPays Genesis Gateway?",
+                "Do you want to process payments via emerchantpays Genesis Gateway?",
                 "6",
                 "1",
                 "emp_zfg_draw_toggle(",
@@ -2169,6 +2169,8 @@ abstract class emerchantpay_method_base extends emerchantpay_base
         } else {
             $check = tep_db_fetch_array($status_query);
 
+            tep_db_query("update " . TABLE_ORDERS_STATUS . " set orders_status_name = '" . $status_name . "' WHERE orders_status_id = '" . $check['orders_status_id'] . "'");
+
             $status_id = $check['orders_status_id'];
         }
 
@@ -2205,10 +2207,10 @@ abstract class emerchantpay_method_base extends emerchantpay_base
      */
 	function statuses() {
         return array(
-            'Processed [eMerchantPay]',
-            'Failed [eMerchantPay]',
-            'Refunded [eMerchantPay]',
-            'Canceled [eMerchantPay]'
+            'Processed [emerchantpay]',
+            'Failed [emerchantpay]',
+            'Refunded [emerchantpay]',
+            'Canceled [emerchantpay]'
         );
     }
 

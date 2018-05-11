@@ -2,7 +2,7 @@
 * Description of changes 2
 * Description of changes 3, etc
 
-Fixes eMerchantPay/oscommerce-emerchantpay-plugin#number
+Fixes eMerchantPay/shopping_carts#number
 
 -----------------
 

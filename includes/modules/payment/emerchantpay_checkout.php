@@ -1,21 +1,21 @@
 <?php
 /**
- * eMerchantPay Checkout
+ * emerchantpay Checkout
  *
- * Contains eMerchantPay Checkout Payment Logic
+ * Contains emerchantpay Checkout Payment Logic
  *
  * @license     http://opensource.org/licenses/MIT The MIT License
- * @copyright   2016 eMerchantPay Ltd.
+ * @copyright   2018 emerchantpay Ltd.
  * @version     $Id:$
  * @since       1.1.0
  */
 
 /**
- * eMerchantPay Checkout
+ * emerchantpay Checkout
  *
- * Main class, instantiated by eMerchantPay providing
+ * Main class, instantiated by emerchantpay providing
  * necessary methods to facilitate payments through
- * eMerchantPay's Payment Gateway
+ * emerchantpay's Payment Gateway
  */
 
 use Genesis\API\Constants\Transaction\Parameters\PayByVouchers\CardTypes;
@@ -314,7 +314,7 @@ class emerchantpay_checkout extends emerchantpay_method_base
             array(
                 'Checkout Title',
                 $this->getSettingKey('CHECKOUT_PAGE_TITLE'),
-                'Pay safely with eMerchantPay Checkout',
+                'Pay safely with emerchantpay Checkout',
                 'This name will be displayed on the checkout page',
                 '6',
                 '10',
