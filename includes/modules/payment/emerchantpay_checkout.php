@@ -67,13 +67,46 @@ class emerchantpay_checkout extends emerchantpay_method_base
             !empty($this->getSetting('TRANSACTION_TYPES'));
     }
 
+    public function install()
+    {
+        parent::install();
+
+        $this->createConsumersTable();
+    }
+
+    protected function createConsumersTable()
+    {
+        tep_db_query('
+            CREATE TABLE `' . static::EMERCHANTPAY_CHECKOUT_CONSUMERS_TABLE_NAME . '` (
+			  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+			  `customer_id` int(10) unsigned NOT NULL,
+			  `customer_email` varchar(255) NOT NULL,
+			  `consumer_id` int(10) unsigned NOT NULL,
+			  PRIMARY KEY (`id`),
+			  UNIQUE KEY `customer_email` (`customer_email`)
+			) ENGINE=MyISAM DEFAULT CHARSET=utf8 COMMENT=\'Tokenization consumers in Genesis\';
+        ');
+    }
+
+    public function remove()
+    {
+        parent::remove();
+
+        $this->removeConsumersTable();
+    }
+
+    protected function removeConsumersTable()
+    {
+        tep_db_query('DROP TABLE IF EXISTS `' . static::EMERCHANTPAY_CHECKOUT_CONSUMERS_TABLE_NAME . '`');
+    }
+
     /**
      * Process Request to the Gateway
      * @return bool
      */
     protected function doBeforeProcessPayment()
     {
-        global $order, $messageStack;
+        global $order;
 
         $data                 = new stdClass();
         $data->transaction_id = $this->getGeneratedTransactionId();
@@ -107,6 +140,10 @@ class emerchantpay_checkout extends emerchantpay_method_base
         try {
             $this->responseObject = $this->pay($data);
 
+            if (isset($this->responseObject->consumer_id)) {
+                $this->saveConsumerId($this->responseObject->consumer_id);
+            }
+
             return true;
         } catch (\Genesis\Exceptions\ErrorAPI $api) {
             $errorMessage         = $api->getMessage();
@@ -122,14 +159,7 @@ class emerchantpay_checkout extends emerchantpay_method_base
         }
 
         if (empty($this->responseObject) && !empty($errorMessage)) {
-            $messageStack->add_session($errorMessage, 'error');
-            tep_redirect(
-                tep_href_link(
-                    FILENAME_CHECKOUT_PAYMENT,
-                    'payment_error=' . get_class($this),
-                    'SSL'
-                )
-            );
+            $this->redirectToShowError($errorMessage);
         }
 
         return false;
@@ -178,10 +208,164 @@ class emerchantpay_checkout extends emerchantpay_method_base
                 ->setLanguage($data->language_id);
 
         $this->setTransactionTypes($genesis->request(), $data);
+        $this->setTokenizationData($genesis->request());
 
         $genesis->execute();
 
         return $genesis->response()->getResponseObject();
+    }
+
+    /**
+     * @param $request
+     *
+     * @throws Exception
+     */
+    protected function setTokenizationData($request)
+    {
+        global $customer_id;
+
+        $consumer = $this->getConsumerFromDb();
+
+        if ($consumer !== false && $consumer['customer_id'] != $customer_id) {
+            return $this->redirectToShowTokenizationError();
+        }
+
+        if ($consumer === false) {
+            $consumer_id = $this->getConsumerIdFromGenesisGateway();
+
+            if ($consumer_id !== 0) {
+                $this->saveConsumerId($consumer_id);
+            }
+        } else {
+            $consumer_id = $consumer['consumer_id'];
+        }
+
+        if (!empty($consumer_id)) {
+            $request->setConsumerId($consumer_id);
+        }
+
+        if ($this->getBoolSetting('WPF_TOKENIZATION')) {
+            $request->setRememberCard(true);
+        }
+    }
+
+    /**
+     * Redirects to cancel the current operation and show tokenization error
+     */
+    protected function redirectToShowTokenizationError()
+    {
+        $this->redirectToShowError('Cannot process your request, please contact the administrator.');
+    }
+
+    /**
+     * Redirects to cancel the current operation and show error
+     *
+     * @param string $message
+     */
+    protected function redirectToShowError($message)
+    {
+        global $messageStack;
+
+        $messageStack->add_session($message, 'error');
+        tep_redirect(
+            tep_href_link(
+                FILENAME_CHECKOUT_PAYMENT,
+                'payment_error=' . get_class($this),
+                'SSL'
+            )
+        );
+    }
+
+    /**
+     * @return array|bool
+     */
+    protected function getConsumerFromDb()
+    {
+        global $order;
+
+        $consumer_query = tep_db_query('
+          SELECT
+            *
+          FROM
+            `' . static::EMERCHANTPAY_CHECKOUT_CONSUMERS_TABLE_NAME . "`
+          WHERE
+            `customer_email` = '" . filter_var($order->customer['email_address'], FILTER_SANITIZE_MAGIC_QUOTES) . "'
+        ");
+        $consumer = tep_db_fetch_array($consumer_query);
+
+        return !empty($consumer) ? $consumer : false;
+    }
+
+    /**
+     * @return int
+     */
+    protected function getConsumerIdFromGenesisGateway()
+    {
+        global $order;
+
+        try {
+            $genesis = new \Genesis\Genesis('NonFinancial\Consumers\Retrieve');
+            $genesis->request()->setEmail($order->customer['email_address']);
+
+            $genesis->execute();
+
+            $response = $genesis->response()->getResponseObject();
+
+            if ($this->isErrorResponse($response)) {
+                return 0;
+            }
+
+            return intval($response->consumer_id);
+        } catch (\Exception $exception) {
+            return 0;
+        }
+    }
+
+    /**
+     * @param $response
+     *
+     * @return bool
+     */
+    protected function isErrorResponse($response)
+    {
+        $state = new \Genesis\API\Constants\Transaction\States($response->status);
+
+        return $state->isError();
+    }
+
+    /**
+     * @param $consumer_id
+     *
+     * @return bool
+     */
+    protected function saveConsumerId($consumer_id)
+    {
+        global $customer_id, $order;
+
+        if (empty($order->customer['email_address']) || empty($consumer_id)) {
+            return false;
+        }
+
+        $consumer = $this->getConsumerFromDb();
+
+        if ($consumer !== false) {
+            return false;
+        }
+
+        tep_db_query("
+            INSERT INTO `" . static::EMERCHANTPAY_CHECKOUT_CONSUMERS_TABLE_NAME . "` (
+                `customer_id`,
+                `customer_email`,
+                `consumer_id`
+            )
+            VALUES (
+                " . intval($customer_id) . ",
+                '" . filter_var($order->customer['email_address'], FILTER_SANITIZE_MAGIC_QUOTES) . "',
+                " . intval($consumer_id) . "
+            )
+        ");
+
+        return true;
     }
 
     private function setTransactionTypes($request, $data)
@@ -281,7 +465,6 @@ class emerchantpay_checkout extends emerchantpay_method_base
             Methods::PRZELEWY24  => Types::PPRO,
             Methods::QIWI        => Types::PPRO,
             Methods::SAFETY_PAY  => Types::PPRO,
-            Methods::TELEINGRESO => Types::PPRO,
             Methods::TRUST_PAY   => Types::PPRO,
             Methods::BCMC        => Types::PPRO,
             Methods::MYBANK      => Types::PPRO,
@@ -341,7 +524,16 @@ class emerchantpay_checkout extends emerchantpay_method_base
                 "emp_zfg_select_drop_down_single_from_object(\"{$this->code}\", \"getConfigLanguageOptions\",",
                 null
             ),
-
+            array(
+                "WPF Tokenization",
+                $this->getSettingKey('WPF_TOKENIZATION'),
+                "false",
+                "Enable WPF Tokenization",
+                "6",
+                "50",
+                "emp_zfg_draw_toggle(",
+                "emp_zfg_get_toggle_value"
+            ),
         );
 
         return array_merge(
@@ -378,7 +570,6 @@ class emerchantpay_checkout extends emerchantpay_method_base
             Types::PAYBYVOUCHER_YEEPAY => 'PayByVoucher (oBeP)',
             Types::PAYPAL_EXPRESS      => 'PayPal Express',
             Types::PAYSAFECARD         => 'PaySafeCard',
-            Types::PAYSEC_PAYIN        => 'PaySec',
             Methods::PRZELEWY24        => 'Przelewy24',
             Types::POLI                => 'POLi',
             Methods::SAFETY_PAY        => 'SafetyPay',
@@ -386,7 +577,6 @@ class emerchantpay_checkout extends emerchantpay_method_base
             Types::SALE_3D             => 'Sale 3D',
             Types::SDD_SALE            => 'Sepa Direct Debit',
             Types::SOFORT              => 'SOFORT',
-            Methods::TELEINGRESO       => 'teleingreso',
             Types::TRUSTLY_SALE        => 'Trustly',
             Methods::TRUST_PAY         => 'TrustPay',
             Types::WEBMONEY            => 'WebMoney',
@@ -438,12 +628,14 @@ class emerchantpay_checkout extends emerchantpay_method_base
             array(
                 'STATUS',
                 'ENVIRONMENT',
-                'TRANSACTION_TYPES'
+                'TRANSACTION_TYPES',
+                'LANGUAGE'
             ),
             array(
                 'CHECKOUT_PAGE_TITLE',
                 'TRANSACTION_TYPES',
-                'LANGUAGE'
+                'LANGUAGE',
+                'WPF_TOKENIZATION'
             )
         );
 

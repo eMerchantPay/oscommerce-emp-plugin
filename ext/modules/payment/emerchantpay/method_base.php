@@ -46,7 +46,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
      * Return Module Version
      * @var string
      */
-    public $version         = "1.5.0";
+    public $version         = "1.5.1";
     /**
      * Return Module Version
      * @var string
@@ -374,8 +374,13 @@ abstract class emerchantpay_method_base extends emerchantpay_base
      */
     protected function getTransactionById($unique_id)
     {
-        $query = tep_db_query("SELECT * FROM `" . $this->getTableNameTransactions() . "`
-                               WHERE `unique_id` = '" . $unique_id . "' LIMIT 1");
+        $query = tep_db_query("
+            SELECT * FROM
+              `" . $this->getTableNameTransactions() . "`
+            WHERE
+              `unique_id` = '" . filter_var($unique_id, FILTER_SANITIZE_MAGIC_QUOTES) . "'
+            LIMIT 1
+        ");
 
         if (tep_db_num_rows($query) > 0) {
             return tep_db_fetch_array($query);
@@ -567,7 +572,8 @@ abstract class emerchantpay_method_base extends emerchantpay_base
      */
     protected static function getCurrencyData($currencyCode)
     {
-        $sql = "select * from `" . TABLE_CURRENCIES . "` WHERE `code` = '{$currencyCode}'";
+        $sql = "select * from `" . TABLE_CURRENCIES . "`
+                WHERE `code` = '" . filter_var($currencyCode, FILTER_SANITIZE_MAGIC_QUOTES) . "'";
 
         $query = tep_db_query($sql);
 
@@ -623,7 +629,6 @@ abstract class emerchantpay_method_base extends emerchantpay_base
                 \Genesis\API\Constants\Payment\Methods::PRZELEWY24,
                 \Genesis\API\Constants\Payment\Methods::QIWI,
                 \Genesis\API\Constants\Payment\Methods::SAFETY_PAY,
-                \Genesis\API\Constants\Payment\Methods::TELEINGRESO,
                 \Genesis\API\Constants\Transaction\Types::ABNIDEAL,
                 \Genesis\API\Constants\Transaction\Types::PAYPAL_EXPRESS,
                 \Genesis\API\Constants\Transaction\Types::TRUSTLY_SALE
@@ -2153,7 +2158,13 @@ abstract class emerchantpay_method_base extends emerchantpay_base
      */
 	function updateStatuses($status_name)
     {
-        $status_query = tep_db_query("select orders_status_id from " . TABLE_ORDERS_STATUS . " where orders_status_name = '" . $status_name . "' limit 1");
+        $status_name = filter_var($status_name, FILTER_SANITIZE_MAGIC_QUOTES);
+
+        $status_query = tep_db_query("
+          select orders_status_id from " . TABLE_ORDERS_STATUS . "
+          where
+            orders_status_name = '$status_name' limit 1
+        ");
 
         if (tep_db_num_rows($status_query) < 1) {
             $status_query = tep_db_query("select max(orders_status_id) as status_id from " . TABLE_ORDERS_STATUS);
@@ -2164,12 +2175,23 @@ abstract class emerchantpay_method_base extends emerchantpay_base
             $languages = tep_get_languages();
 
             foreach ($languages as $lang) {
-                tep_db_query("insert into " . TABLE_ORDERS_STATUS . " (orders_status_id, language_id, orders_status_name, public_flag) values ('" . $status_id . "', '" . $lang['id'] . "', '" . $status_name . "', '1')");
+                tep_db_query("
+                  insert into " . TABLE_ORDERS_STATUS . "
+                    (orders_status_id, language_id, orders_status_name, public_flag)
+                  values
+                    ('$status_id', '" . intval($lang['id']) . "', '$status_name', '1')
+                ");
             }
         } else {
             $check = tep_db_fetch_array($status_query);
 
-            tep_db_query("update " . TABLE_ORDERS_STATUS . " set orders_status_name = '" . $status_name . "' WHERE orders_status_id = '" . $check['orders_status_id'] . "'");
+            tep_db_query("
+                update " . TABLE_ORDERS_STATUS . "
+                set
+                    orders_status_name = '$status_name'
+                WHERE
+                    orders_status_id = '" . intval($check['orders_status_id']) . "'
+            ");
 
             $status_id = $check['orders_status_id'];
         }

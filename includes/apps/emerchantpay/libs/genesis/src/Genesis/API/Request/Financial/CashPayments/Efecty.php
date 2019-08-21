@@ -21,30 +21,28 @@
  * @license     http://opensource.org/licenses/MIT The MIT License
  */
 
-namespace Genesis\API\Traits\Request\Financial;
+namespace Genesis\API\Request\Financial\CashPayments;
 
 /**
- * Trait SddBankAttributes
- * @package Genesis\API\Traits\Request\Financial
+ * Class Efecty
  *
- * @method $this setIban($value) Set a valid IBAN bank account
- * @method $this setBic($value) Set a valid BIC code
+ * Efecty - oBeP-style alternative payment method
+ *
+ * @package Genesis\API\Request\Financial\CashPayments
  */
-trait SddBankAttributes
+class Efecty extends \Genesis\API\Request\Base\Financial\SouthAmericanPayment
 {
     /**
-     * Must contain valid IBAN, check
-     * in the official API documentation
-     *
-     * @var string
+     * Returns the Request transaction type
+     * @return string
      */
-    protected $iban;
+    protected function getTransactionType()
+    {
+        return \Genesis\API\Constants\Transaction\Types::EFECTY;
+    }
 
-    /**
-     * Must contain valid BIC, check
-     * in the official API documentation
-     *
-     * @var string
-     */
-    protected $bic;
+    public function getAllowedBillingCountries()
+    {
+        return ['CO'];
+    }
 }

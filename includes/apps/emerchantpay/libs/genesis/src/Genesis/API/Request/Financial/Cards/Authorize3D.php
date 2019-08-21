@@ -23,7 +23,9 @@
 
 namespace Genesis\API\Request\Financial\Cards;
 
+use Genesis\API\Traits\Request\DocumentAttributes;
 use Genesis\API\Traits\Request\Financial\GamingAttributes;
+use Genesis\API\Traits\Request\Financial\PreauthorizationAttributes;
 use Genesis\API\Traits\Request\MotoAttributes;
 use Genesis\API\Traits\Request\Financial\NotificationAttributes;
 use Genesis\API\Traits\Request\Financial\AsyncAttributes;
@@ -33,6 +35,7 @@ use Genesis\API\Traits\Request\AddressInfoAttributes;
 use Genesis\API\Traits\Request\Financial\MpiAttributes;
 use Genesis\API\Traits\Request\RiskAttributes;
 use Genesis\API\Traits\Request\Financial\DescriptorAttributes;
+use Genesis\API\Traits\Request\Financial\TravelData\TravelDataAttributes;
 
 /**
  * Class Authorize3D
@@ -45,7 +48,8 @@ class Authorize3D extends \Genesis\API\Request\Base\Financial
 {
     use GamingAttributes, MotoAttributes, NotificationAttributes, AsyncAttributes,
         PaymentAttributes, CreditCardAttributes, AddressInfoAttributes,
-        MpiAttributes, RiskAttributes, DescriptorAttributes;
+        MpiAttributes, RiskAttributes, DescriptorAttributes, DocumentAttributes,
+        PreauthorizationAttributes, TravelDataAttributes;
 
     /**
      * Returns the Request transaction type
@@ -109,6 +113,7 @@ class Authorize3D extends \Genesis\API\Request\Base\Financial
         return [
             'gaming'                    => $this->gaming,
             'moto'                      => $this->moto,
+            'preauthorization'          => var_export($this->preauthorization, true),
             'notification_url'          => $this->notification_url,
             'return_success_url'        => $this->return_success_url,
             'return_failure_url'        => $this->return_failure_url,
@@ -121,12 +126,14 @@ class Authorize3D extends \Genesis\API\Request\Base\Financial
             'expiration_year'           => $this->expiration_year,
             'customer_email'            => $this->customer_email,
             'customer_phone'            => $this->customer_phone,
+            'document_id'               => $this->document_id,
             'birth_date'                => $this->birth_date,
             'billing_address'           => $this->getBillingAddressParamsStructure(),
             'shipping_address'          => $this->getShippingAddressParamsStructure(),
             'mpi_params'                => $this->getMpiParamsStructure(),
             'risk_params'               => $this->getRiskParamsStructure(),
-            'dynamic_descriptor_params' => $this->getDynamicDescriptorParamsStructure()
+            'dynamic_descriptor_params' => $this->getDynamicDescriptorParamsStructure(),
+            'travel'                    => $this->getTravelData()
         ];
     }
 }

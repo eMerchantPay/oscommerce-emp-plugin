@@ -20,57 +20,34 @@
  *
  * @license     http://opensource.org/licenses/MIT The MIT License
  */
-namespace Genesis\Interfaces;
+
+namespace Genesis\API\Request\Financial\OnlineBankingPayments;
 
 /**
- * An interface for every network abstraction (cURL, Stream etc.).
+ * Class Pse
  *
- * @package    Genesis
- * @subpackage Network
+ * PSE (Pagos Seguros en Linea) is the preferred alternative payment solution in Colombia.The solution consists
+ * of an interface that offers the client the option to pay for their online purchases in cash,
+ * directing it to their online banking.
+ *
+ * @package Genesis\API\Request\Financial\OnlineBankingPayments
  */
-interface Network
+class Pse extends \Genesis\API\Request\Base\Financial\SouthAmericanPayment
 {
     /**
-     * Get HTTP Status code
-     *
-     * @return mixed
+     * Returns the Request transaction type
+     * @return string
      */
-    public function getStatus();
+    protected function getTransactionType()
+    {
+        return \Genesis\API\Constants\Transaction\Types::PSE;
+    }
 
     /**
-     * Get the full response (headers/body)
-     *
-     * @return mixed
+     * @return array
      */
-    public function getResponse();
-
-    /**
-     * Get response headers
-     *
-     * @return mixed
-     */
-    public function getResponseHeaders();
-
-    /**
-     * Get response body
-     *
-     * @return mixed
-     */
-    public function getResponseBody();
-
-    /**
-     * Set the request parameters
-     *
-     * @param $requestData
-     *
-     * @return mixed
-     */
-    public function prepareRequestBody($requestData);
-
-    /**
-     * Execute pre-set request
-     *
-     * @return mixed
-     */
-    public function execute();
+    public function getAllowedBillingCountries()
+    {
+        return ['CO'];
+    }
 }

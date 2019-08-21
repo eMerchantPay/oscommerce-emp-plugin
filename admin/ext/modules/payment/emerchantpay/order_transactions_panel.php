@@ -64,7 +64,7 @@ class emerchantpay_order_transactions_panel
         }
 
         $query = tep_db_query('select count(`unique_id`) as `transactions_count` from `' . $table_name . '`
-                                where `order_id` = "' . $order_id . '"');
+                                where `order_id` = "' . intval($order_id) . '"');
 
         $fields = tep_db_fetch_array($query);
         return $fields['transactions_count'] > 0;

@@ -24,10 +24,11 @@
 abstract class emerchantpay_base
 {
     const EMERCHANTPAY_CHECKOUT_METHOD_CODE = 'emerchantpay_checkout';
-    const EMERCHANTPAY_DIRECT_METHOD_CODE = 'emerchantpay_direct';
+    const EMERCHANTPAY_DIRECT_METHOD_CODE   = 'emerchantpay_direct';
 
     const EMERCHANTPAY_CHECKOUT_TRANSACTIONS_TABLE_NAME = 'emerchantpay_checkout_transactions';
-    const EMERCHANTPAY_DIRECT_TRANSACTIONS_TABLE_NAME = 'emerchantpay_direct_transactions';
+    const EMERCHANTPAY_CHECKOUT_CONSUMERS_TABLE_NAME    = 'emerchantpay_checkout_consumers';
+    const EMERCHANTPAY_DIRECT_TRANSACTIONS_TABLE_NAME   = 'emerchantpay_direct_transactions';
 
     const ACTION_CAPTURE = 'doCapture';
     const ACTION_REFUND  = 'doRefund';
@@ -253,7 +254,7 @@ abstract class emerchantpay_base
 
             $values = implode(', ', array_map(
                 function ($v) {
-                    return sprintf("'%s'", $v);
+                    return "'" . filter_var($v, FILTER_SANITIZE_MAGIC_QUOTES) . "'";
                 },
                 $data,
                 array_keys(
@@ -295,7 +296,7 @@ abstract class emerchantpay_base
 				SET
 					" . $fields . "
 				WHERE
-				    `unique_id` = '" . $data['unique_id'] . "'
+				    `unique_id` = '" . filter_var($data['unique_id'], FILTER_SANITIZE_MAGIC_QUOTES) . "'
 			");
         } catch (Exception $exception) {
 
@@ -317,7 +318,7 @@ abstract class emerchantpay_base
                 FROM
                     `" . $this->getTableNameTransactions() . "`
                 WHERE
-                    `unique_id` = '" . $data['unique_id'] . "'
+                    `unique_id` = '" . filter_var($data['unique_id'], FILTER_SANITIZE_MAGIC_QUOTES) . "'
             ");
 
             if (tep_db_num_rows($insertQuery) > 0) {

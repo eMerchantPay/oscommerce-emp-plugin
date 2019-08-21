@@ -21,16 +21,16 @@
  * @license     http://opensource.org/licenses/MIT The MIT License
  */
 
-namespace Genesis\API\Request\Financial\Alternatives;
+namespace Genesis\API\Request\Financial\CashPayments;
 
 /**
- * Class CashU
+ * Class Redpagos
  *
- * Alternative payment method
+ * Redpagos - oBeP-style alternative payment method
  *
- * @package Genesis\API\Request\Financial\Alternatives
+ * @package Genesis\API\Request\Financial\CashPayments
  */
-class CashU extends \Genesis\API\Request\Base\Financial\Alternative
+class Redpagos extends \Genesis\API\Request\Base\Financial\SouthAmericanPayment
 {
     /**
      * Returns the Request transaction type
@@ -38,29 +38,11 @@ class CashU extends \Genesis\API\Request\Base\Financial\Alternative
      */
     protected function getTransactionType()
     {
-        return \Genesis\API\Constants\Transaction\Types::CASHU;
+        return \Genesis\API\Constants\Transaction\Types::REDPAGOS;
     }
 
-    /**
-     * Set the required fields
-     *
-     * @return void
-     */
-    protected function setRequiredFields()
+    public function getAllowedBillingCountries()
     {
-        parent::setRequiredFields();
-
-        $requiredFieldValues = [
-            'billing_country' => [
-                'DZ', 'BH', 'EG', 'GM', 'GH', 'IN', 'IR', 'IQ', 'IL', 'JO', 'KE',
-                'KR', 'KW', 'LB', 'LY', 'MY', 'MR', 'MA', 'NG', 'OM', 'PK', 'PS',
-                'QA', 'SA', 'SL', 'SD', 'SY', 'TZ', 'TN', 'TR', 'AE', 'US', 'YE'
-            ],
-            'currency'        => [
-                'USD', 'AED', 'EUR', 'JOD', 'EGP', 'SAR', 'DZD', 'LBP', 'MAD', 'QAR', 'TRY'
-            ]
-        ];
-
-        $this->requiredFieldValues = \Genesis\Utils\Common::createArrayObject($requiredFieldValues);
+        return ['UY'];
     }
 }

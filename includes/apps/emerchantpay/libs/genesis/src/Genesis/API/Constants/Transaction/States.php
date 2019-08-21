@@ -22,6 +22,8 @@
  */
 namespace Genesis\API\Constants\Transaction;
 
+use Genesis\Exceptions\InvalidMethod;
+
 /**
  * Class States
  *
@@ -36,6 +38,8 @@ namespace Genesis\API\Constants\Transaction;
  * @method bool isError()
  * @method bool isRefunded()
  * @method bool isVoided()
+ * @method bool isEnabled()
+ * @method bool isDisabled()
  */
 class States
 {
@@ -125,6 +129,16 @@ class States
     const PRE_ARBITRATED = 'pre_arbitrated';
 
     /**
+     * Status of the consumer from Consumer API
+     */
+    const ENABLED = 'enabled';
+
+    /**
+     * Status of the consumer from Consumer API
+     */
+    const DISABLED = 'disabled';
+
+    /**
      * Store the state of transaction for comparison
      *
      * @var string
@@ -149,7 +163,8 @@ class States
      * @param $method
      * @param $args
      *
-     * @return $this|bool
+     * @throws InvalidMethod
+     * @return bool
      */
     public function __call($method, $args)
     {
@@ -160,13 +175,15 @@ class States
                 if (isset($this->status)) {
                     return $this->compare($target);
                 }
-
-                break;
-            default:
-                break;
         }
 
-        return null;
+        throw new InvalidMethod(
+            sprintf(
+                'You\'re trying to call a non-existent method %s of class %s!',
+                $method,
+                __CLASS__
+            )
+        );
     }
 
     /**
