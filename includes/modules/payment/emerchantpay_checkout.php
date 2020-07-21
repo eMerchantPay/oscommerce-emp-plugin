@@ -390,7 +390,11 @@ class emerchantpay_checkout extends emerchantpay_method_base
             ),
             Types::INSTA_DEBIT_PAYIN   => array(
                 'customer_account_id' => $userIdHash
-            )
+            ),
+            Types::TRUSTLY_SALE        => array(
+                'user_id' => $userIdHash
+            ),
+            Types::KLARNA_AUTHORIZE    => get_klarna_custom_param_items($data)->toArray()
         );
 
         $transactionTypes = static::getCheckoutTransactionTypes();
@@ -453,22 +457,17 @@ class emerchantpay_checkout extends emerchantpay_method_base
     function getCheckoutTransactionTypes()
     {
         $processed_list = array();
+        $alias_map      = array();
 
         $selected_types = array_map(
             'trim',
             explode(',', $this->getSetting('TRANSACTION_TYPES'))
         );
+        $methods = \Genesis\API\Constants\Payment\Methods::getMethods();
 
-        $alias_map = array(
-            Methods::EPS         => Types::PPRO,
-            Methods::GIRO_PAY    => Types::PPRO,
-            Methods::PRZELEWY24  => Types::PPRO,
-            Methods::QIWI        => Types::PPRO,
-            Methods::SAFETY_PAY  => Types::PPRO,
-            Methods::TRUST_PAY   => Types::PPRO,
-            Methods::BCMC        => Types::PPRO,
-            Methods::MYBANK      => Types::PPRO,
-        );
+        foreach ($methods as $method) {
+            $alias_map[$method . self::PPRO_TRANSACTION_SUFFIX] = \Genesis\API\Constants\Transaction\Types::PPRO;
+        }
 
         foreach ($selected_types as $selected_type) {
             if (array_key_exists($selected_type, $alias_map)) {
@@ -477,7 +476,7 @@ class emerchantpay_checkout extends emerchantpay_method_base
                 $processed_list[$transaction_type]['name'] = $transaction_type;
 
                 $processed_list[$transaction_type]['parameters'][] = array(
-                    'payment_method' => $selected_type
+                    'payment_method' => str_replace(self::PPRO_TRANSACTION_SUFFIX, '', $selected_type)
                 );
             } else {
                 $processed_list[] = $selected_type;
@@ -548,43 +547,37 @@ class emerchantpay_checkout extends emerchantpay_method_base
      */
     public function getConfigTransactionTypesOptions()
     {
-        $transactionTypes = array(
-            Types::ALIPAY              => 'Alipay',
-            Types::ABNIDEAL            => 'ABN iDEAL',
-            Types::AUTHORIZE           => 'Authorize',
-            Types::AUTHORIZE_3D        => 'Authorize 3D',
-            Types::CASHU               => 'CashU',
-            Types::CITADEL_PAYIN       => 'Citadel',
-            Methods::EPS               => 'eps',
-            Types::EZEEWALLET          => 'eZeeWallet',
-            Methods::GIRO_PAY          => 'GiroPay',
-            Types::IDEBIT_PAYIN        => 'iDebit',
-            Types::INPAY               => 'INPay',
-            Types::INSTA_DEBIT_PAYIN   => 'InstaDebit',
-            Methods::BCMC              => 'Mr.Cash',
-            Methods::MYBANK            => 'MyBank',
-            Types::NETELLER            => 'Neteller',
-            Methods::QIWI              => 'Qiwi',
-            Types::P24                 => 'P24',
-            Types::PAYBYVOUCHER_SALE   => 'PayByVoucher (Sale)',
-            Types::PAYBYVOUCHER_YEEPAY => 'PayByVoucher (oBeP)',
-            Types::PAYPAL_EXPRESS      => 'PayPal Express',
-            Types::PAYSAFECARD         => 'PaySafeCard',
-            Methods::PRZELEWY24        => 'Przelewy24',
-            Types::POLI                => 'POLi',
-            Methods::SAFETY_PAY        => 'SafetyPay',
-            Types::SALE                => 'Sale',
-            Types::SALE_3D             => 'Sale 3D',
-            Types::SDD_SALE            => 'Sepa Direct Debit',
-            Types::SOFORT              => 'SOFORT',
-            Types::TRUSTLY_SALE        => 'Trustly',
-            Methods::TRUST_PAY         => 'TrustPay',
-            Types::WEBMONEY            => 'WebMoney',
-            Types::WECHAT              => 'WeChat'
+        $data = array();
+
+        $transactionTypes = \Genesis\API\Constants\Transaction\Types::getWPFTransactionTypes();
+        $excludedTypes    = self::getRecurringTransactionTypes();
+
+        // Exclude PPRO transaction. This is not standalone transaction type
+        array_push($excludedTypes, \Genesis\API\Constants\Transaction\Types::PPRO);
+
+        // Exclude Transaction Types
+        $transactionTypes = array_diff($transactionTypes, $excludedTypes);
+
+        //Add PPRO types
+        $pproTypes = array_map(
+            function ($type) {
+                return $type . self::PPRO_TRANSACTION_SUFFIX;
+            },
+            \Genesis\API\Constants\Payment\Methods::getMethods()
         );
 
+        $transactionTypes = array_merge($transactionTypes, $pproTypes);
+        asort($transactionTypes);
+
+        foreach ($transactionTypes as $type) {
+            $name = \Genesis\API\Constants\Transaction\Types::isValidTransactionType($type) ?
+                \Genesis\API\Constants\Transaction\Names::getName($type) : strtoupper($type);
+
+            $data[$type] = $name;
+        }
+
         return $this->buildSettingsDropDownOptions(
-            $transactionTypes
+            $data
         );
     }
 
@@ -594,24 +587,18 @@ class emerchantpay_checkout extends emerchantpay_method_base
      */
     public function getConfigLanguageOptions()
     {
-        $languages = array(
-            'en' => 'English',
-            'it' => 'Italian',
-            'es' => 'Spanish',
-            'fr' => 'French',
-            'de' => 'German',
-            'ja' => 'Japanese',
-            'zh' => 'Chinese',
-            'ar' => 'Arabic',
-            'pt' => 'Portuguese',
-            'tr' => 'Turkish',
-            'ru' => 'Russian',
-            'hi' => 'Hindi',
-            'bg' => 'Bulgarian'
-        );
+        $data = array();
+
+        $languages = \Genesis\API\Constants\i18n::getAll();
+
+        foreach ($languages as $language) {
+            $languageTranslation = 'MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_' . strtoupper($language);
+            $data[$language] = defined($languageTranslation) ?
+                constant($languageTranslation) : strtoupper($language);
+        }
 
         return $this->buildSettingsDropDownOptions(
-            $languages
+            $data
         );
     }
 

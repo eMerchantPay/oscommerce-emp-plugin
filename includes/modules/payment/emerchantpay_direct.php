@@ -18,6 +18,7 @@
  * emerchantpay's Payment Gateway
  */
 
+use Genesis\API\Constants\Transaction\Names;
 use Genesis\API\Constants\Transaction\Types;
 
 if (!class_exists('emerchantpay_method_base')) {
@@ -421,10 +422,10 @@ class emerchantpay_direct extends emerchantpay_method_base
     public function getConfigTransactionTypesOptions()
     {
         $transactionTypes = array(
-            Types::AUTHORIZE    => 'Authorize',
-            Types::AUTHORIZE_3D => 'Authorize3D',
-            Types::SALE         => 'Sale',
-            Types::SALE_3D      => 'Sale 3D'
+            Types::AUTHORIZE    => Names::getName(Types::AUTHORIZE),
+            Types::AUTHORIZE_3D => Names::getName(Types::AUTHORIZE_3D),
+            Types::SALE         => Names::getName(Types::SALE),
+            Types::SALE_3D      => Names::getName(Types::SALE_3D)
         );
 
         return $this->buildSettingsDropDownOptions(

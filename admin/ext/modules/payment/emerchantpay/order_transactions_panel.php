@@ -151,9 +151,13 @@ class emerchantpay_order_transactions_panel
                             require_once(DIR_FS_CATALOG_LANGUAGES . $_SESSION['language'] . '/modules/payment/' . $methodCode . '.php');
                             $module = new $methodCode;
                             if (method_exists($module, $action)) {
+                                $usage = empty($requestData['message']) ?
+                                    str_replace('do', '', $action) . ' OsCommerce transaction' :
+                                    $requestData['message'];
+
                                 $data = array(
                                     'reference_id' => $requestData['reference_id'],
-                                    'usage'        => $requestData['message'],
+                                    'usage'        => $usage,
                                 );
 
                                 if ($action != emerchantpay_base::ACTION_VOID) {

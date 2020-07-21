@@ -297,3 +297,289 @@ function emp_get_string_ends_with($haystack, $needle)
 
     return (substr($haystack, -$length) === $needle);
 }
+
+/**
+ * @param \stdClass $data
+ * @param bool $is_order
+ * @return null | \Genesis\API\Request\Financial\Alternatives\Klarna\Items
+ */
+function get_klarna_custom_param_items($data, $is_order = false)
+{
+    if (!isset($data->order)) {
+        return new \Genesis\API\Request\Financial\Alternatives\Klarna\Items($data->currency);
+    }
+
+    try {
+        /**
+         * @property order $order
+         */
+        $order = $data->order;
+
+        $items = new \Genesis\API\Request\Financial\Alternatives\Klarna\Items($order->info['currency']);
+        foreach ($order->products as $product) {
+            $productType = get_product_type($product, $is_order) == 'virtual' ?
+                \Genesis\API\Request\Financial\Alternatives\Klarna\Item::ITEM_TYPE_DIGITAL :
+                \Genesis\API\Request\Financial\Alternatives\Klarna\Item::ITEM_TYPE_PHYSICAL;
+
+            $klarnaItem = new \Genesis\API\Request\Financial\Alternatives\Klarna\Item(
+                $product['name'],
+                $productType,
+                $product['qty'],
+                $product['final_price']
+            );
+            $items->addItem($klarnaItem);
+        }
+
+        $taxes = floatval($order->info['tax']);
+        if ($taxes) {
+            $items->addItem(
+                new \Genesis\API\Request\Financial\Alternatives\Klarna\Item(
+                    'Taxes',
+                    \Genesis\API\Request\Financial\Alternatives\Klarna\Item::ITEM_TYPE_SURCHARGE,
+                    1,
+                    $taxes
+                )
+            );
+        }
+
+        $shipping = floatval($order->info['shipping_cost']);
+        if ($shipping) {
+            $items->addItem(
+                new \Genesis\API\Request\Financial\Alternatives\Klarna\Item(
+                    $order->info['shipping_method'],
+                    \Genesis\API\Request\Financial\Alternatives\Klarna\Item::ITEM_TYPE_SHIPPING_FEE,
+                    1,
+                    $shipping
+                )
+            );
+        }
+
+        return $items;
+    } catch (\Exception $e) {
+        return null;
+    }
+}
+
+/**
+ * Check Cart product
+ *
+ * @param integer $product_id
+ * @param $option_id
+ * @return bool
+ */
+function is_virtual_product($product_id, $option_id)
+{
+    if (!is_numeric($product_id) || !is_numeric($option_id)) {
+        return false;
+    }
+
+    $virtual_check_query = tep_db_query(
+        "SELECT count(*) as total " .
+        "FROM " .
+        TABLE_PRODUCTS_ATTRIBUTES . " pa, " . TABLE_PRODUCTS_ATTRIBUTES_DOWNLOAD . " pad ".
+        "WHERE " .
+        "pa.products_id = '" . (int)$product_id . "' AND " .
+        "pa.options_values_id = '" . (int)$option_id . "' AND " .
+        "pa.products_attributes_id = pad.products_attributes_id"
+    );
+    $virtual_check = tep_db_fetch_array($virtual_check_query);
+
+    if ($virtual_check['total'] > 0) {
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Check Order product
+ *
+ * @param $order_product_id
+ * @return bool
+ */
+function is_virtual_order_product($order_product_id)
+{
+    if (!is_numeric($order_product_id)) {
+        return false;
+    }
+
+    $virtual_order_check_query = tep_db_query(
+        "SELECT count(*) as total " .
+        "FROM " . TABLE_ORDERS_PRODUCTS_DOWNLOAD . " as opd, ". TABLE_ORDERS_PRODUCTS_ATTRIBUTES . " as pa " .
+        "WHERE " .
+        "pa.orders_products_attributes_id = '" . (int)$order_product_id . "' ".
+        "AND opd.orders_products_id = pa.orders_products_id"
+    );
+    $virtual_order_check_query = tep_db_fetch_array($virtual_order_check_query);
+
+    if ($virtual_order_check_query['total'] > 0) {
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Determinate the product type
+ *
+ * @param $product
+ * @param bool $is_order
+ * @return string physical | virtual
+ */
+function get_product_type($product, $is_order = false)
+{
+    if (!array_key_exists('attributes', $product)) {
+        return 'physical';
+    }
+
+    foreach ($product['attributes'] as $attribute) {
+        $type = $is_order ?
+            is_virtual_order_product((int)$attribute['attribute_id']) :
+            is_virtual_product((int)$product['id'], (int)$attribute['value_id']);
+
+        if (isset($productTypeBool) && $productTypeBool != $type) {
+            return 'physical';
+        }
+
+        $productTypeBool = $type;
+    }
+
+    if ($productTypeBool === true) {
+        return 'virtual';
+    }
+
+    return 'physical';
+}
+
+/**
+ * Retrieve OrderProducts with their IDs and Attribute OptionIDs
+ *
+ * @param $order_id
+ * @return array
+ */
+function get_orders_products($order_id)
+{
+    $products = array();
+
+    $index = 0;
+    $orders_products_query = tep_db_query(
+        "SELECT " .
+        "orders_products_id, " .
+        "products_name, " .
+        "products_model, " .
+        "products_price, " .
+        "products_tax, " .
+        "products_quantity, " .
+        "final_price " .
+        "FROM " . TABLE_ORDERS_PRODUCTS . " " .
+        "WHERE orders_id = '" . (int)$order_id . "'"
+    );
+    while ($orders_products = tep_db_fetch_array($orders_products_query)) {
+        $products[$index] = array('qty' => $orders_products['products_quantity'],
+            'id'    => $orders_products['orders_products_id'],
+            'name' => $orders_products['products_name'],
+            'model' => $orders_products['products_model'],
+            'tax' => $orders_products['products_tax'],
+            'price' => $orders_products['products_price'],
+            'final_price' => $orders_products['final_price']);
+
+        $subindex = 0;
+        $attributes_query = tep_db_query(
+            "SELECT " .
+            "orders_products_attributes_id, " .
+            "products_options, " .
+            "products_options_values, " .
+            "options_values_price, " .
+            "price_prefix " .
+            "FROM " . TABLE_ORDERS_PRODUCTS_ATTRIBUTES . " " .
+            "WHERE " .
+            "orders_id = '" . (int)$order_id . "' AND " .
+            "orders_products_id = '" . (int)$orders_products['orders_products_id'] . "'"
+        );
+        if (tep_db_num_rows($attributes_query)) {
+            while ($attributes = tep_db_fetch_array($attributes_query)) {
+                $products[$index]['attributes'][$subindex] = array(
+                    'attribute_id' => $attributes['orders_products_attributes_id'],
+                    'option' => $attributes['products_options'],
+                    'value' => $attributes['products_options_values'],
+                    'prefix' => $attributes['price_prefix'],
+                    'price' => $attributes['options_values_price']);
+
+                $subindex++;
+            }
+        }
+        $index++;
+    }
+
+    return $products;
+}
+
+/**
+ * Extract tax and shipping cost for specific Order
+ *
+ * @param int $order_id
+ * @return array
+ */
+function get_orders_totals_values($order_id)
+{
+    $order_totals = array();
+
+    $totals_query = tep_db_query(
+        "SELECT " .
+        "title, " .
+        "value, " .
+        "class " .
+        "FROM " . TABLE_ORDERS_TOTAL . " " .
+        "WHERE orders_id = '" . (int)$order_id . "' order by sort_order"
+    );
+    while ($totals = tep_db_fetch_array($totals_query)) {
+        $order_totals[] = array(
+            'title' => $totals['title'],
+            'value'  => $totals['value'],
+            'class' => $totals['class']
+        );
+    }
+
+    return $order_totals;
+}
+
+/**
+ * Reconstruct Cart info from Order
+ *
+ * @param int $order_id
+ * @return stdClass
+ */
+function get_klarna_data($order_id)
+{
+    $klarnaData                  = new \stdClass();
+    $klarnaData->order           = new order($order_id);
+    $klarnaData->order->products = get_orders_products($order_id);
+
+    $totals = get_orders_totals_values($order_id);
+
+    $taxes    = get_klarna_data_from_totals($totals, 'ot_tax');
+    $shipping = get_klarna_data_from_totals($totals, 'ot_shipping');
+
+    $klarnaData->order->info['tax']             = $taxes['value'];
+    $klarnaData->order->info['shipping_cost']   = $shipping['value'];
+    $klarnaData->order->info['shipping_method'] = $shipping['title'];
+
+    return $klarnaData;
+}
+
+/**
+ * @param array $totals
+ * @param string $recordType
+ * @return array
+ */
+function get_klarna_data_from_totals($totals, $recordType)
+{
+    foreach ($totals as $total) {
+        if ($total['class'] === $recordType) {
+            return array (
+                'title' => $total['title'],
+                'value' => $total['value']
+            );
+        }
+    }
+}

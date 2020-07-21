@@ -17,6 +17,8 @@
  * @license     http://opensource.org/licenses/gpl-2.0.php GNU General Public License, version 2 (GPL-2.0)
  */
 
+use Genesis\API\Constants\Transaction\Types;
+
 if (!class_exists('emerchantpay_base')) {
     require_once DIR_FS_CATALOG . "ext/modules/payment/emerchantpay/base.php";
 }
@@ -43,10 +45,14 @@ abstract class emerchantpay_method_base extends emerchantpay_base
      */
     const ACTION_CANCEL     = 'cancel';
     /**
+     * PPRO transaction types suffix
+     */
+    const PPRO_TRANSACTION_SUFFIX = '_ppro';
+    /**
      * Return Module Version
      * @var string
      */
-    public $version         = '1.5.2';
+    public $version         = '1.5.3';
     /**
      * Return Module Version
      * @var string
@@ -391,11 +397,12 @@ abstract class emerchantpay_method_base extends emerchantpay_base
 
     /**
      * Process Reference (Capture, Refund, Void) Transaction to the Gateway
-     * @param string $transaction_type
+     * @param string $transactionType
      * @param array $data
+     * @param array $initialTransaction
      * @return bool
      */
-    protected function doExecuteReferenceTransaction($transaction_type, $data)
+    protected function doExecuteReferenceTransaction($transactionType, $data, $initialTransaction)
     {
         global $messageStack;
 
@@ -404,10 +411,8 @@ abstract class emerchantpay_method_base extends emerchantpay_base
                 $data['remote_ip'] = static::getServerRemoteAddress();
             }
 
-            $transaction = $this->getTransactionById($data['reference_id']);
-
             if (array_key_exists('currency', $data) && is_null($data['currency'])) {
-                $data['currency'] = $transaction['currency'];
+                $data['currency'] = $initialTransaction['currency'];
             }
 
             if (!isset($data['transaction_id'])) {
@@ -415,100 +420,15 @@ abstract class emerchantpay_method_base extends emerchantpay_base
             }
 
             if (empty(\Genesis\Config::getToken())) {
-                \Genesis\Config::setToken($transaction['terminal_token']);
+                \Genesis\Config::setToken($initialTransaction['terminal_token']);
             }
 
-            $genesis = new \Genesis\Genesis('Financial\\' . ucfirst($transaction_type));
-
-            $request = $genesis->request();
-
-            foreach ($data as $key => $value) {
-                $methodName = sprintf(
-                    "set%s",
-                    \Genesis\Utils\Common::snakeCaseToCamelCase($key)
-                );
-                call_user_func_array(
-                    array($request, $methodName),
-                    array($value)
-                );
-            }
-
-            $genesis->execute();
+            $genesis = $this->executeReferenceTransaction($transactionType, $data, $initialTransaction);
 
             $responseObject = $genesis->response()->getResponseObject();
 
             if (isset($responseObject->unique_id)) {
-                $timestamp = $this->formatTimeStamp($responseObject->timestamp);
-
-                if ($responseObject->status == \Genesis\API\Constants\Transaction\States::APPROVED) {
-                    $messageStack->add_session($responseObject->message, 'success');
-                } else {
-                    $messageStack->add_session($responseObject->message, 'error');
-                }
-
-                $data = array(
-                    'order_id' => $transaction['order_id'],
-                    'reference_id' => $transaction['unique_id'],
-                    'unique_id' => $responseObject->unique_id,
-                    'type' => $responseObject->transaction_type,
-                    'mode' => $responseObject->mode,
-                    'status' => $responseObject->status,
-                    'amount' => (isset($responseObject->amount) ? $responseObject->amount : "0"),
-                    'currency' => $responseObject->currency,
-                    'timestamp' => $timestamp,
-                    'terminal_token' =>
-                        isset($responseObject->terminal_token)
-                            ? $responseObject->terminal_token
-                            : $transaction['terminal_token'],
-                    'message' =>
-                        isset($responseObject->message)
-                            ? $responseObject->message
-                            : '',
-                    'technical_message' =>
-                        isset($responseObject->technical_message)
-                            ? $responseObject->technical_message
-                            : '',
-                );
-
-                switch ($responseObject->transaction_type) {
-                    case \Genesis\API\Constants\Transaction\Types::CAPTURE:
-                        $data['type'] = $this->getSetting('LABEL_ORDER_TRANS_HEADER_ACTION_CAPTURE');
-                        $data['order_status_id'] = $this->getSetting('PROCESSED_ORDER_STATUS_ID');
-                        break;
-
-                    case \Genesis\API\Constants\Transaction\Types::REFUND:
-                        $data['type'] = $this->getSetting('LABEL_ORDER_TRANS_HEADER_ACTION_REFUND');
-                        $data['order_status_id'] = $this->getSetting('REFUNDED_ORDER_STATUS_ID');
-                        break;
-
-                    case \Genesis\API\Constants\Transaction\Types::VOID:
-                        $data['type'] = $this->getSetting('LABEL_ORDER_TRANS_HEADER_ACTION_VOID');
-                        $data['order_status_id'] = $this->getSetting('CANCELED_ORDER_STATUS_ID');
-                        break;
-                }
-
-                if (isset($data['type']) && isset($data['order_status_id'])) {
-                    static::setOrderStatus(
-                        $transaction['order_id'],
-                        $data['order_status_id']
-                    );
-
-                    static::performOrderStatusHistory(
-                        array(
-                            'type'              => $data['type'],
-                            'orders_id'         => $transaction['order_id'],
-                            'order_status_id'   => $data['order_status_id'],
-                            'transaction_type'  => $responseObject->transaction_type,
-                            'payment'           => array(
-                                'unique_id'       => $responseObject->unique_id,
-                                'status'          => $responseObject->status,
-                                'message'         => $responseObject->message
-                            )
-                        )
-                    );
-                }
-
-                $data['type'] = $responseObject->transaction_type;
+                $data = $this->handleReferenceTransactionResponse($responseObject, $initialTransaction);
                 unset($data['order_status_id']);
 
                 $this->doPopulateTransaction($data);
@@ -524,16 +444,172 @@ abstract class emerchantpay_method_base extends emerchantpay_base
     }
 
     /**
+     * @param $transactionType
+     * @param $data
+     * @param $initialTransaction
+     * @return \Genesis\Genesis
+     * @throws \Genesis\Exceptions\DeprecatedMethod
+     * @throws \Genesis\Exceptions\ErrorAPI
+     * @throws \Genesis\Exceptions\InvalidArgument
+     * @throws \Genesis\Exceptions\InvalidMethod
+     * @throws \Genesis\Exceptions\InvalidResponse
+     */
+    protected function executeReferenceTransaction($transactionType, $data, $initialTransaction)
+    {
+        $genesis = new \Genesis\Genesis($transactionType);
+
+        $request = $genesis->request();
+
+        foreach ($data as $key => $value) {
+            $methodName = sprintf(
+                "set%s",
+                \Genesis\Utils\Common::snakeCaseToCamelCase($key)
+            );
+            call_user_func_array(
+                array($request, $methodName),
+                array($value)
+            );
+        }
+
+        $captureType = Types::getCaptureTransactionClass(Types::KLARNA_AUTHORIZE);
+        $refundType  = Types::getRefundTransactionClass(Types::KLARNA_CAPTURE);
+
+        if ($transactionType == $captureType || $transactionType == $refundType) {
+            $klarnaData  = get_klarna_data($initialTransaction['order_id']);
+            $klarnaItems = get_klarna_custom_param_items($klarnaData, true);
+
+            $request->setItems($klarnaItems);
+        }
+
+        $genesis->execute();
+
+        return $genesis;
+    }
+
+    /**
+     * @param \stdClass $responseObject
+     * @param array $initialTransaction
+     * @return array
+     */
+    protected function handleReferenceTransactionResponse($responseObject, $initialTransaction)
+    {
+        global $messageStack;
+
+        $timestamp = $this->formatTimeStamp($responseObject->timestamp);
+
+        if ($responseObject->status == \Genesis\API\Constants\Transaction\States::APPROVED) {
+            $messageStack->add_session($responseObject->message, 'success');
+        } else {
+            $messageStack->add_session($responseObject->message, 'error');
+        }
+
+        $data = array(
+            'order_id' => $initialTransaction['order_id'],
+            'reference_id' => $initialTransaction['unique_id'],
+            'unique_id' => $responseObject->unique_id,
+            'type' => $responseObject->transaction_type,
+            'mode' => $responseObject->mode,
+            'status' => $responseObject->status,
+            'amount' => (isset($responseObject->amount) ? $responseObject->amount : "0"),
+            'currency' => $responseObject->currency,
+            'timestamp' => $timestamp,
+            'terminal_token' =>
+                isset($responseObject->terminal_token)
+                    ? $responseObject->terminal_token
+                    : $initialTransaction['terminal_token'],
+            'message' =>
+                isset($responseObject->message)
+                    ? $responseObject->message
+                    : '',
+            'technical_message' =>
+                isset($responseObject->technical_message)
+                    ? $responseObject->technical_message
+                    : '',
+        );
+
+        $data = array_merge(
+            $data,
+            $this->getReferenceLabels($responseObject->transaction_type)
+        );
+
+        if (isset($data['type']) && isset($data['order_status_id'])) {
+            $this->recordReferenceHistory($responseObject, $data, $initialTransaction);
+        }
+
+        $data['type'] = $responseObject->transaction_type;
+
+        return $data;
+    }
+
+    /**
+     * @param \stdClass $responseObject
+     * @param array $data
+     * @param array $initialTransaction
+     */
+    protected function recordReferenceHistory($responseObject, $data, $initialTransaction)
+    {
+        static::setOrderStatus(
+            $initialTransaction['order_id'],
+            $data['order_status_id']
+        );
+
+        static::performOrderStatusHistory(
+            array(
+                'type'              => $data['type'],
+                'orders_id'         => $initialTransaction['order_id'],
+                'order_status_id'   => $data['order_status_id'],
+                'transaction_type'  => $responseObject->transaction_type,
+                'payment'           => array(
+                    'unique_id'       => $responseObject->unique_id,
+                    'status'          => $responseObject->status,
+                    'message'         => $responseObject->message
+                )
+            )
+        );
+    }
+
+    /**
+     * @param string $transactionType
+     * @return array
+     */
+    protected function getReferenceLabels($transactionType)
+    {
+        $data = array();
+
+        switch ($transactionType) {
+            case Types::CAPTURE:
+                $data['type'] = $this->getSetting('LABEL_ORDER_TRANS_HEADER_ACTION_CAPTURE');
+                $data['order_status_id'] = $this->getSetting('PROCESSED_ORDER_STATUS_ID');
+                break;
+
+            case Types::REFUND:
+                $data['type'] = $this->getSetting('LABEL_ORDER_TRANS_HEADER_ACTION_REFUND');
+                $data['order_status_id'] = $this->getSetting('REFUNDED_ORDER_STATUS_ID');
+                break;
+
+            case Types::VOID:
+                $data['type'] = $this->getSetting('LABEL_ORDER_TRANS_HEADER_ACTION_VOID');
+                $data['order_status_id'] = $this->getSetting('CANCELED_ORDER_STATUS_ID');
+                break;
+        }
+
+        return $data;
+    }
+
+    /**
      * Process Capture Transaction to the Genesis Gatewayu
      * @param array $data
      * @return bool
      */
     public function doCapture($data)
     {
+        $initialTransaction = $this->getTransactionById($data['reference_id']);
+
         return
             $this->doExecuteReferenceTransaction(
-                \Genesis\API\Constants\Transaction\Types::CAPTURE,
-                $data
+                Types::getCaptureTransactionClass($initialTransaction['type']),
+                $data,
+                $initialTransaction
             );
     }
 
@@ -544,10 +620,13 @@ abstract class emerchantpay_method_base extends emerchantpay_base
      */
     public function doRefund($data)
     {
+        $initialTransaction = $this->getTransactionById($data['reference_id']);
+
         return
             $this->doExecuteReferenceTransaction(
-                \Genesis\API\Constants\Transaction\Types::REFUND,
-                $data
+                Types::getRefundTransactionClass($initialTransaction['type']),
+                $data,
+                $initialTransaction
             );
     }
 
@@ -558,10 +637,13 @@ abstract class emerchantpay_method_base extends emerchantpay_base
      */
     public function doVoid($data)
     {
+        $initialTransaction = $this->getTransactionById($data['reference_id']);
+
         return
             $this->doExecuteReferenceTransaction(
-                \Genesis\API\Constants\Transaction\Types::VOID,
-                $data
+                'Financial\\' . ucfirst(Types::VOID),
+                $data,
+                $initialTransaction
             );
     }
 
@@ -600,13 +682,8 @@ abstract class emerchantpay_method_base extends emerchantpay_base
      */
     protected static function getCanCaptureTransaction($transaction)
     {
-        return (in_array($transaction['type'], array(
-                \Genesis\API\Constants\Transaction\Types::AUTHORIZE,
-                \Genesis\API\Constants\Transaction\Types::AUTHORIZE_3D
-            )) &&
-            ($transaction['status'] ==
-                \Genesis\API\Constants\Transaction\States::APPROVED)
-        );
+        return Types::isAuthorize($transaction['type']) &&
+            ($transaction['status'] == \Genesis\API\Constants\Transaction\States::APPROVED);
     }
 
     /**
@@ -616,26 +693,8 @@ abstract class emerchantpay_method_base extends emerchantpay_base
      */
     protected static function getCanRefundTransaction($transaction)
     {
-        return (in_array($transaction['type'], array(
-                \Genesis\API\Constants\Transaction\Types::CAPTURE,
-                \Genesis\API\Constants\Transaction\Types::SALE,
-                \Genesis\API\Constants\Transaction\Types::SALE_3D,
-                \Genesis\API\Constants\Transaction\Types::INIT_RECURRING_SALE,
-                \Genesis\API\Constants\Transaction\Types::INIT_RECURRING_SALE_3D,
-                \Genesis\API\Constants\Transaction\Types::CASHU,
-                \Genesis\API\Constants\Payment\Methods::EPS,
-                \Genesis\API\Constants\Payment\Methods::GIRO_PAY,
-                \Genesis\API\Constants\Payment\Methods::TRUST_PAY,
-                \Genesis\API\Constants\Payment\Methods::PRZELEWY24,
-                \Genesis\API\Constants\Payment\Methods::QIWI,
-                \Genesis\API\Constants\Payment\Methods::SAFETY_PAY,
-                \Genesis\API\Constants\Transaction\Types::ABNIDEAL,
-                \Genesis\API\Constants\Transaction\Types::PAYPAL_EXPRESS,
-                \Genesis\API\Constants\Transaction\Types::TRUSTLY_SALE
-            )) &&
-            ($transaction['status'] ==
-                \Genesis\API\Constants\Transaction\States::APPROVED)
-        );
+        return Types::canRefund($transaction['type']) &&
+            $transaction['status'] == \Genesis\API\Constants\Transaction\States::APPROVED;
     }
 
     /**
@@ -645,20 +704,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
      */
     protected static function getCanVoidTransaction($transaction)
     {
-        return in_array(
-            $transaction['type'],
-            array(
-                \Genesis\API\Constants\Transaction\Types::AUTHORIZE,
-                \Genesis\API\Constants\Transaction\Types::AUTHORIZE_3D,
-                \Genesis\API\Constants\Transaction\Types::CAPTURE,
-                \Genesis\API\Constants\Transaction\Types::SALE,
-                \Genesis\API\Constants\Transaction\Types::SALE_3D,
-                \Genesis\API\Constants\Transaction\Types::INIT_RECURRING_SALE,
-                \Genesis\API\Constants\Transaction\Types::RECURRING_SALE,
-                \Genesis\API\Constants\Transaction\Types::REFUND,
-                \Genesis\API\Constants\Transaction\Types::TRUSTLY_SALE
-            )
-        );
+        return Types::canVoid($transaction['type']);
     }
 
     /**
@@ -1340,15 +1386,15 @@ abstract class emerchantpay_method_base extends emerchantpay_base
                     $transaction['order_id'],
                     $transaction['reference_id'],
                     array(
-                        \Genesis\API\Constants\Transaction\Types::AUTHORIZE,
-                        \Genesis\API\Constants\Transaction\Types::AUTHORIZE_3D
+                        Types::AUTHORIZE,
+                        Types::AUTHORIZE_3D
                     ),
                     \Genesis\API\Constants\Transaction\States::APPROVED
                 );
                 $totalCapturedAmount = $this->getTransactionsSumAmount(
                     $transaction['order_id'],
                     $transaction['unique_id'],
-                    \Genesis\API\Constants\Transaction\Types::CAPTURE,
+                    Types::CAPTURE,
                     \Genesis\API\Constants\Transaction\States::APPROVED
                 );
                 $transaction['available_amount'] = $totalAuthorizedAmount - $totalCapturedAmount;
@@ -1365,7 +1411,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
                 $totalRefundedAmount = $this->getTransactionsSumAmount(
                     $transaction['order_id'],
                     $transaction['unique_id'],
-                    \Genesis\API\Constants\Transaction\Types::REFUND,
+                    Types::REFUND,
                     \Genesis\API\Constants\Transaction\States::APPROVED
                 );
                 $transaction['available_amount'] = $totalCapturedAmount - $totalRefundedAmount;
@@ -1374,11 +1420,11 @@ abstract class emerchantpay_method_base extends emerchantpay_base
             if (static::getCanVoidTransaction($transaction)) {
                 $transaction['can_void'] = true;
                 $transaction['void_exists'] = $this->getTransactionsByTypeAndStatus(
-                        $transaction['order_id'],
-                        $transaction['unique_id'],
-                        \Genesis\API\Constants\Transaction\Types::VOID,
-                        \Genesis\API\Constants\Transaction\States::APPROVED
-                    ) !== false;
+                    $transaction['order_id'],
+                    $transaction['unique_id'],
+                    Types::VOID,
+                    \Genesis\API\Constants\Transaction\States::APPROVED
+                ) !== false;
             } else {
                 $transaction['can_void'] = false;
             }
@@ -1572,7 +1618,8 @@ abstract class emerchantpay_method_base extends emerchantpay_base
         );
 
         foreach ($files as $file) {
-            $file = DIR_FS_ADMIN . "ext/modules/payment/emerchantpay/{$file}";
+            $path = defined('DIR_FS_ADMIN') ? DIR_FS_ADMIN : DIR_FS_CATALOG . '/admin/';
+            $file = $path . "ext/modules/payment/emerchantpay/{$file}";
 
             if (file_exists($file)) {
                 require_once $file;
@@ -2347,8 +2394,8 @@ abstract class emerchantpay_method_base extends emerchantpay_base
     protected static function isAsyncTransaction($transactionType )
     {
         return in_array($transactionType, array(
-            \Genesis\API\Constants\Transaction\Types::AUTHORIZE_3D,
-            \Genesis\API\Constants\Transaction\Types::SALE_3D
+            Types::AUTHORIZE_3D,
+            Types::SALE_3D
         ));
     }
 
@@ -2401,5 +2448,19 @@ abstract class emerchantpay_method_base extends emerchantpay_base
         }
 
         return $state;
+    }
+
+    /**
+     * Retrieve reccuring transaction types
+     *
+     * @return array
+     */
+    protected static function getRecurringTransactionTypes()
+    {
+        return array (
+            Types::INIT_RECURRING_SALE,
+            Types::INIT_RECURRING_SALE_3D,
+            Types::SDD_INIT_RECURRING_SALE
+        );
     }
 }
