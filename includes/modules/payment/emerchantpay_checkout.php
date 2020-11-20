@@ -109,7 +109,7 @@ class emerchantpay_checkout extends emerchantpay_method_base
         global $order;
 
         $data                 = new stdClass();
-        $data->transaction_id = $this->getGeneratedTransactionId();
+        $data->transaction_id = $this->getGeneratedTransactionId(self::PLATFORM_TRANSACTION_PREFIX);
         $data->description    = '';
 
         foreach ($order->products as $product) {
@@ -181,7 +181,7 @@ class emerchantpay_checkout extends emerchantpay_method_base
         $genesis
             ->request()
                 ->setTransactionId($data->transaction_id)
-                ->setUsage('osCommerce Electronic Transaction')
+                ->setUsage(self::getUsage())
                 ->setDescription($data->description)
                 ->setNotificationUrl($data->urls['notification'])
                 ->setReturnSuccessUrl($data->urls['return_success'])

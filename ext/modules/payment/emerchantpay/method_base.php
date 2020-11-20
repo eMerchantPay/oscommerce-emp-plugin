@@ -30,6 +30,18 @@ if (!class_exists('emerchantpay_base')) {
 abstract class emerchantpay_method_base extends emerchantpay_base
 {
     /**
+     * Return common usage
+     * @const string
+     */
+    const TRANSACTION_USAGE = 'Payment via';
+
+    /**
+     * Return platform prefix
+     * @const string
+     */
+    const PLATFORM_TRANSACTION_PREFIX = 'osc_';
+
+    /**
      * Return Success Action
      * @const string
      */
@@ -52,7 +64,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
      * Return Module Version
      * @var string
      */
-    public $version         = '1.5.3';
+    public $version         = '1.5.4';
     /**
      * Return Module Version
      * @var string
@@ -416,7 +428,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
             }
 
             if (!isset($data['transaction_id'])) {
-                $data['transaction_id'] = $this->getGeneratedTransactionId();
+                $data['transaction_id'] = $this->getGeneratedTransactionId(self::PLATFORM_TRANSACTION_PREFIX);
             }
 
             if (empty(\Genesis\Config::getToken())) {
@@ -2410,11 +2422,12 @@ abstract class emerchantpay_method_base extends emerchantpay_base
 
     /**
      * Generate a TransactionId for the Genesis Gateway
+     * @param string $prefix
      * @return string
      */
-    protected static function getGeneratedTransactionId()
+    protected static function getGeneratedTransactionId($prefix = '')
     {
-        return substr(md5(uniqid() . microtime(true)),0, 30);
+        return $prefix . substr(md5(uniqid() . microtime(true)), 0, 30);
     }
 
     /**
@@ -2462,5 +2475,15 @@ abstract class emerchantpay_method_base extends emerchantpay_base
             Types::INIT_RECURRING_SALE_3D,
             Types::SDD_INIT_RECURRING_SALE
         );
+    }
+
+    /**
+     * Return usage of transaction
+     *
+     * @return string
+     */
+    protected static function getUsage()
+    {
+        return self::TRANSACTION_USAGE . ' ' . STORE_NAME;
     }
 }

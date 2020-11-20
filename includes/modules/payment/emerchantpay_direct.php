@@ -208,7 +208,7 @@ class emerchantpay_direct extends emerchantpay_method_base
         $this->validateCreditCardInfo($HTTP_POST_VARS);
 
         $data                   = new stdClass();
-        $data->transaction_id   = $this->getGeneratedTransactionId();
+        $data->transaction_id   = $this->getGeneratedTransactionId(self::PLATFORM_TRANSACTION_PREFIX);
         $data->transaction_type = $this->getSetting('TRANSACTION_TYPE');
         $data->description      = '';
 
@@ -303,7 +303,7 @@ class emerchantpay_direct extends emerchantpay_method_base
         $params = array(
             'transaction_id'      => $data->transaction_id,
             'remote_ip'           => $this->getServerRemoteAddress(),
-            'usage'               => 'osCommerce Electronic Transaction',
+            'usage'               => self::getUsage(),
             'currency'            => $data->currency,
             'amount'              => $data->order->info['total'],
             'card_holder'         => $data->card_info['cc_owner'],
