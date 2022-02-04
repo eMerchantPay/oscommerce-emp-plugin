@@ -469,14 +469,27 @@ class emerchantpay_checkout extends emerchantpay_method_base
             $alias_map[$method . self::PPRO_TRANSACTION_SUFFIX] = \Genesis\API\Constants\Transaction\Types::PPRO;
         }
 
+        $alias_map = array_merge($alias_map, [
+            self::GOOGLE_PAY_TRANSACTION_PREFIX . self::GOOGLE_PAY_PAYMENT_TYPE_AUTHORIZE =>
+                \Genesis\API\Constants\Transaction\Types::GOOGLE_PAY,
+            self::GOOGLE_PAY_TRANSACTION_PREFIX . self::GOOGLE_PAY_PAYMENT_TYPE_SALE      =>
+                \Genesis\API\Constants\Transaction\Types::GOOGLE_PAY
+        ]);
+
         foreach ($selected_types as $selected_type) {
             if (array_key_exists($selected_type, $alias_map)) {
                 $transaction_type = $alias_map[$selected_type];
 
                 $processed_list[$transaction_type]['name'] = $transaction_type;
 
+                $key = $transaction_type === Types::GOOGLE_PAY ? 'payment_type' : 'payment_method';
+
                 $processed_list[$transaction_type]['parameters'][] = array(
-                    'payment_method' => str_replace(self::PPRO_TRANSACTION_SUFFIX, '', $selected_type)
+                    $key => str_replace(
+                        [self::PPRO_TRANSACTION_SUFFIX, self::GOOGLE_PAY_TRANSACTION_PREFIX],
+                        '',
+                        $selected_type
+                    )
                 );
             } else {
                 $processed_list[] = $selected_type;
@@ -555,6 +568,9 @@ class emerchantpay_checkout extends emerchantpay_method_base
         // Exclude PPRO transaction. This is not standalone transaction type
         array_push($excludedTypes, \Genesis\API\Constants\Transaction\Types::PPRO);
 
+        // Exclude GooglePay transaction. In this way Google Pay Payment types will be introduced
+        array_push($excludedTypes, \Genesis\API\Constants\Transaction\Types::GOOGLE_PAY);
+
         // Exclude Transaction Types
         $transactionTypes = array_diff($transactionTypes, $excludedTypes);
 
@@ -566,7 +582,17 @@ class emerchantpay_checkout extends emerchantpay_method_base
             \Genesis\API\Constants\Payment\Methods::getMethods()
         );
 
-        $transactionTypes = array_merge($transactionTypes, $pproTypes);
+        $googlePayTypes = array_map(
+            function ($type) {
+                return self::GOOGLE_PAY_TRANSACTION_PREFIX . $type;
+            },
+            [
+                self::GOOGLE_PAY_PAYMENT_TYPE_AUTHORIZE,
+                self::GOOGLE_PAY_PAYMENT_TYPE_SALE
+            ]
+        );
+
+        $transactionTypes = array_merge($transactionTypes, $pproTypes, $googlePayTypes);
         asort($transactionTypes);
 
         foreach ($transactionTypes as $type) {

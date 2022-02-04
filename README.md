@@ -7,7 +7,7 @@ Requirements
 ------------
 
 * osCommerce v2.x
-* [GenesisPHP v1.19.1](https://github.com/GenesisGateway/genesis_php/releases/tag/1.19.1) - (Integrated in Module)
+* [GenesisPHP v1.19.2](https://github.com/GenesisGateway/genesis_php/releases/tag/1.19.2) - (Integrated in Module)
 * PCI-certified server in order to use ```emerchantpay Direct```
 
 GenesisPHP Requirements
@@ -64,6 +64,7 @@ Supported Transactions & Payment Methods
     * __eZeeWallet__
     * __Fashioncheque__
     * __GiroPay__
+    * __GooglePay__
     * __iDeal__
     * __iDebit__
     * __InstaDebit__

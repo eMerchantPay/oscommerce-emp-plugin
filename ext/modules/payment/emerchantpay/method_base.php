@@ -60,11 +60,27 @@ abstract class emerchantpay_method_base extends emerchantpay_base
      * PPRO transaction types suffix
      */
     const PPRO_TRANSACTION_SUFFIX = '_ppro';
+
+    /**
+     * Google Pay Transaction Prefix
+     */
+    const GOOGLE_PAY_TRANSACTION_PREFIX = 'google_pay_';
+
+    /**
+     * Google Pay Payment Method Authorize
+     */
+    const GOOGLE_PAY_PAYMENT_TYPE_AUTHORIZE = 'authorize';
+
+    /**
+     * Google Pay Payment Method Sale
+     */
+    const GOOGLE_PAY_PAYMENT_TYPE_SALE = 'sale';
+
     /**
      * Return Module Version
      * @var string
      */
-    public $version         = '1.5.5';
+    public $version         = '1.5.6';
     /**
      * Return Module Version
      * @var string
@@ -690,23 +706,48 @@ abstract class emerchantpay_method_base extends emerchantpay_base
     /**
      * Determine if transaction can be captured
      * @param array $transaction
+     * @param array $configuredTransactions
      * @return bool
      */
-    protected static function getCanCaptureTransaction($transaction)
+    protected static function getCanCaptureTransaction($transaction, $configuredTransactions)
     {
-        return Types::isAuthorize($transaction['type']) &&
-            ($transaction['status'] == \Genesis\API\Constants\Transaction\States::APPROVED);
+        if (!self::hasApprovedState($transaction['status'])) {
+            return false;
+        }
+
+        if (self::isTransactionWithCustomAttribute($transaction['type'])) {
+            return self::checkReferenceActionByCustomAttr(
+                self::ACTION_CAPTURE,
+                $transaction['type'],
+                $configuredTransactions
+            );
+        }
+
+        return Types::isAuthorize($transaction['type']);
     }
 
     /**
      * Determine if transaction can be refunded
+     *
      * @param array $transaction
+     * @param array $configuredTransactions
      * @return bool
      */
-    protected static function getCanRefundTransaction($transaction)
+    protected static function getCanRefundTransaction($transaction, $configuredTransactions)
     {
-        return Types::canRefund($transaction['type']) &&
-            $transaction['status'] == \Genesis\API\Constants\Transaction\States::APPROVED;
+        if (!self::hasApprovedState($transaction['status'])) {
+            return false;
+        }
+
+        if (self::isTransactionWithCustomAttribute($transaction['type'])) {
+            return self::checkReferenceActionByCustomAttr(
+                self::ACTION_REFUND,
+                $transaction['type'],
+                $configuredTransactions
+            );
+        }
+
+        return Types::canRefund($transaction['type']);
     }
 
     /**
@@ -716,8 +757,23 @@ abstract class emerchantpay_method_base extends emerchantpay_base
      */
     protected static function getCanVoidTransaction($transaction)
     {
-        return Types::canVoid($transaction['type']);
+        return Types::canVoid($transaction['type']) && self::hasApprovedState($transaction['status']);
     }
+
+    /**
+     * Get the Selected Checkout method transaction types
+     *
+     * @return array
+     */
+    protected function getCheckoutSelectedTypes()
+    {
+        return array_map(
+            'trim',
+            explode(',', $this->getSetting('TRANSACTION_TYPES'))
+        );
+    }
+
+
 
     /**
      * Get the sum of the ammount for a list of transaction types and status
@@ -1387,7 +1443,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
         foreach ($transactions as &$transaction) {
             $transaction['timestamp'] = date('H:i:s m/d/Y', strtotime($transaction['timestamp']));
 
-            if (static::getCanCaptureTransaction($transaction)) {
+            if (static::getCanCaptureTransaction($transaction, $this->getCheckoutSelectedTypes())) {
                 $transaction['can_capture'] = true;
             } else {
                 $transaction['can_capture'] = false;
@@ -1399,7 +1455,8 @@ abstract class emerchantpay_method_base extends emerchantpay_base
                     $transaction['reference_id'],
                     array(
                         Types::AUTHORIZE,
-                        Types::AUTHORIZE_3D
+                        Types::AUTHORIZE_3D,
+                        Types::GOOGLE_PAY
                     ),
                     \Genesis\API\Constants\Transaction\States::APPROVED
                 );
@@ -1412,7 +1469,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
                 $transaction['available_amount'] = $totalAuthorizedAmount - $totalCapturedAmount;
             }
 
-            if (static::getCanRefundTransaction($transaction)) {
+            if (static::getCanRefundTransaction($transaction, $this->getCheckoutSelectedTypes())) {
                 $transaction['can_refund'] = true;
             } else {
                 $transaction['can_refund'] = false;
@@ -2485,5 +2542,74 @@ abstract class emerchantpay_method_base extends emerchantpay_base
     protected static function getUsage()
     {
         return self::TRANSACTION_USAGE . ' ' . STORE_NAME;
+    }
+
+    /**
+     * Determine if Google Pay Method is chosen inside the Payment settings
+     *
+     * @param string $transactionType GooglePay Method
+     * @return bool
+     */
+    protected static function isTransactionWithCustomAttribute($transactionType)
+    {
+        $transaction_types = [
+            \Genesis\API\Constants\Transaction\Types::GOOGLE_PAY
+        ];
+
+        return in_array($transactionType, $transaction_types);
+    }
+
+    /**
+     * Check if canCapture, canRefund based on the selected custom attribute
+     *
+     * @param $action
+     * @param $transactionType
+     * @param $selectedTypes
+     * @return bool
+     */
+    protected static function checkReferenceActionByCustomAttr($action, $transactionType, $selectedTypes)
+    {
+        if (!is_array($selectedTypes)) {
+            return false;
+        }
+
+        switch ($transactionType) {
+            case \Genesis\API\Constants\Transaction\Types::GOOGLE_PAY:
+                if (self::ACTION_CAPTURE === $action) {
+                    return in_array(
+                        self::GOOGLE_PAY_TRANSACTION_PREFIX . self::GOOGLE_PAY_PAYMENT_TYPE_AUTHORIZE,
+                        $selectedTypes
+                    );
+                }
+
+                if (self::ACTION_REFUND === $action) {
+                    return in_array(
+                        self::GOOGLE_PAY_TRANSACTION_PREFIX . self::GOOGLE_PAY_PAYMENT_TYPE_SALE,
+                        $selectedTypes
+                    );
+                }
+                break;
+            default:
+                return false;
+        } // end Switch
+
+        return false;
+    }
+
+    /**
+     * Check if the Genesis Transaction state is APPROVED
+     *
+     * @param $transactionType
+     * @return bool
+     */
+    protected static function hasApprovedState($transactionType)
+    {
+        if (empty($transactionType)) {
+            return false;
+        }
+
+        $state = new \Genesis\API\Constants\Transaction\States($transactionType);
+
+        return $state->isApproved();
     }
 }
