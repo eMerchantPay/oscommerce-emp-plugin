@@ -185,6 +185,7 @@ class emerchantpay_checkout extends emerchantpay_method_base
                 ->setDescription($data->description)
                 ->setNotificationUrl($data->urls['notification'])
                 ->setReturnSuccessUrl($data->urls['return_success'])
+                ->setReturnPendingUrl($data->urls['return_success'])
                 ->setReturnFailureUrl($data->urls['return_failure'])
                 ->setReturnCancelUrl($data->urls['return_cancel'])
                 ->setCurrency($data->currency)
@@ -471,9 +472,15 @@ class emerchantpay_checkout extends emerchantpay_method_base
 
         $alias_map = array_merge($alias_map, [
             self::GOOGLE_PAY_TRANSACTION_PREFIX . self::GOOGLE_PAY_PAYMENT_TYPE_AUTHORIZE =>
-                \Genesis\API\Constants\Transaction\Types::GOOGLE_PAY,
+                Types::GOOGLE_PAY,
             self::GOOGLE_PAY_TRANSACTION_PREFIX . self::GOOGLE_PAY_PAYMENT_TYPE_SALE      =>
-                \Genesis\API\Constants\Transaction\Types::GOOGLE_PAY
+                Types::GOOGLE_PAY,
+            self::PAYPAL_TRANSACTION_PREFIX . self::PAYPAL_PAYMENT_TYPE_AUTHORIZE         =>
+                Types::PAY_PAL,
+            self::PAYPAL_TRANSACTION_PREFIX . self::PAYPAL_PAYMENT_TYPE_SALE              =>
+                Types::PAY_PAL,
+            self::PAYPAL_TRANSACTION_PREFIX . self::PAYPAL_PAYMENT_TYPE_EXPRESS           =>
+                Types::PAY_PAL
         ]);
 
         foreach ($selected_types as $selected_type) {
@@ -482,11 +489,15 @@ class emerchantpay_checkout extends emerchantpay_method_base
 
                 $processed_list[$transaction_type]['name'] = $transaction_type;
 
-                $key = $transaction_type === Types::GOOGLE_PAY ? 'payment_type' : 'payment_method';
+                $key = $this->getCustomParameterKey($transaction_type);
 
                 $processed_list[$transaction_type]['parameters'][] = array(
                     $key => str_replace(
-                        [self::PPRO_TRANSACTION_SUFFIX, self::GOOGLE_PAY_TRANSACTION_PREFIX],
+                        [
+                            self::PPRO_TRANSACTION_SUFFIX,
+                            self::GOOGLE_PAY_TRANSACTION_PREFIX,
+                            self::PAYPAL_TRANSACTION_PREFIX
+                        ],
                         '',
                         $selected_type
                     )
@@ -571,6 +582,9 @@ class emerchantpay_checkout extends emerchantpay_method_base
         // Exclude GooglePay transaction. In this way Google Pay Payment types will be introduced
         array_push($excludedTypes, \Genesis\API\Constants\Transaction\Types::GOOGLE_PAY);
 
+        // Exclude PayPal transaction.
+        array_push($excludedTypes, \Genesis\API\Constants\Transaction\Types::PAY_PAL);
+
         // Exclude Transaction Types
         $transactionTypes = array_diff($transactionTypes, $excludedTypes);
 
@@ -592,7 +606,23 @@ class emerchantpay_checkout extends emerchantpay_method_base
             ]
         );
 
-        $transactionTypes = array_merge($transactionTypes, $pproTypes, $googlePayTypes);
+        $payPalTypes = array_map(
+            function ($type) {
+                return self::PAYPAL_TRANSACTION_PREFIX . $type;
+            },
+            [
+                self::PAYPAL_PAYMENT_TYPE_AUTHORIZE,
+                self::PAYPAL_PAYMENT_TYPE_SALE,
+                self::PAYPAL_PAYMENT_TYPE_EXPRESS
+            ]
+        );
+
+        $transactionTypes = array_merge(
+            $transactionTypes,
+            $pproTypes,
+            $googlePayTypes,
+            $payPalTypes
+        );
         asort($transactionTypes);
 
         foreach ($transactionTypes as $type) {
@@ -653,5 +683,28 @@ class emerchantpay_checkout extends emerchantpay_method_base
         );
 
         return $keys;
+    }
+
+    /**
+     * @param $transaction_type
+     * @return string
+     */
+    private function getCustomParameterKey($transaction_type)
+    {
+        switch ($transaction_type) {
+            case \Genesis\API\Constants\Transaction\Types::PPRO:
+                $result = 'payment_method';
+                break;
+            case \Genesis\API\Constants\Transaction\Types::PAY_PAL:
+                $result = 'payment_type';
+                break;
+            case \Genesis\API\Constants\Transaction\Types::GOOGLE_PAY:
+                $result = 'payment_subtype';
+                break;
+            default:
+                $result = 'unknown';
+        }
+
+        return $result;
     }
 }

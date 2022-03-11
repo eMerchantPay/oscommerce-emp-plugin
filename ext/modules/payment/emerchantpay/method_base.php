@@ -77,10 +77,30 @@ abstract class emerchantpay_method_base extends emerchantpay_base
     const GOOGLE_PAY_PAYMENT_TYPE_SALE = 'sale';
 
     /**
+     * PayPal Transaction Prefix
+     */
+    const PAYPAL_TRANSACTION_PREFIX = 'pay_pal_';
+
+    /**
+     * PayPal Payment Method Authorize
+     */
+    const PAYPAL_PAYMENT_TYPE_AUTHORIZE = 'authorize';
+
+    /**
+     * PayPal Payment Method Sale
+     */
+    const PAYPAL_PAYMENT_TYPE_SALE = 'sale';
+
+    /**
+     * PayPal Payment Method Express
+     */
+    const PAYPAL_PAYMENT_TYPE_EXPRESS = 'express';
+
+    /**
      * Return Module Version
      * @var string
      */
-    public $version         = '1.5.6';
+    public $version         = '1.5.7';
     /**
      * Return Module Version
      * @var string
@@ -1456,7 +1476,8 @@ abstract class emerchantpay_method_base extends emerchantpay_base
                     array(
                         Types::AUTHORIZE,
                         Types::AUTHORIZE_3D,
-                        Types::GOOGLE_PAY
+                        Types::GOOGLE_PAY,
+                        Types::PAY_PAL
                     ),
                     \Genesis\API\Constants\Transaction\States::APPROVED
                 );
@@ -2545,15 +2566,16 @@ abstract class emerchantpay_method_base extends emerchantpay_base
     }
 
     /**
-     * Determine if Google Pay Method is chosen inside the Payment settings
+     * Determine if Google Pay or PayPal Method is chosen inside the Payment settings
      *
-     * @param string $transactionType GooglePay Method
+     * @param string $transactionType GooglePay or PayPal Methods
      * @return bool
      */
     protected static function isTransactionWithCustomAttribute($transactionType)
     {
         $transaction_types = [
-            \Genesis\API\Constants\Transaction\Types::GOOGLE_PAY
+            Types::GOOGLE_PAY,
+            Types::PAY_PAL
         ];
 
         return in_array($transactionType, $transaction_types);
@@ -2587,6 +2609,23 @@ abstract class emerchantpay_method_base extends emerchantpay_base
                         self::GOOGLE_PAY_TRANSACTION_PREFIX . self::GOOGLE_PAY_PAYMENT_TYPE_SALE,
                         $selectedTypes
                     );
+                }
+                break;
+            case Types::PAY_PAL:
+                if (self::ACTION_CAPTURE == $action) {
+                    return in_array(
+                        self::PAYPAL_TRANSACTION_PREFIX . self::PAYPAL_PAYMENT_TYPE_AUTHORIZE,
+                        $selectedTypes
+                    );
+                }
+
+                if (self::ACTION_REFUND === $action) {
+                    $refundableTypes = [
+                        self::PAYPAL_TRANSACTION_PREFIX . self::PAYPAL_PAYMENT_TYPE_SALE,
+                        self::PAYPAL_TRANSACTION_PREFIX . self::PAYPAL_PAYMENT_TYPE_EXPRESS
+                    ];
+
+                    return (count(array_intersect($refundableTypes, $selectedTypes)) > 0);
                 }
                 break;
             default:
