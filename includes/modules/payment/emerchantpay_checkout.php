@@ -395,7 +395,7 @@ class emerchantpay_checkout extends emerchantpay_method_base
             Types::TRUSTLY_SALE        => array(
                 'user_id' => $userIdHash
             ),
-            Types::KLARNA_AUTHORIZE    => get_klarna_custom_param_items($data)->toArray()
+            Types::KLARNA_AUTHORIZE    => emp_get_klarna_custom_param_items($data)->toArray()
         );
 
         $transactionTypes = static::getCheckoutTransactionTypes();
@@ -480,7 +480,11 @@ class emerchantpay_checkout extends emerchantpay_method_base
             self::PAYPAL_TRANSACTION_PREFIX . self::PAYPAL_PAYMENT_TYPE_SALE              =>
                 Types::PAY_PAL,
             self::PAYPAL_TRANSACTION_PREFIX . self::PAYPAL_PAYMENT_TYPE_EXPRESS           =>
-                Types::PAY_PAL
+                Types::PAY_PAL,
+            self::APPLE_PAY_TRANSACTION_PREFIX . self::APPLE_PAY_PAYMENT_TYPE_AUTHORIZE   =>
+                Types::APPLE_PAY,
+            self::APPLE_PAY_TRANSACTION_PREFIX . self::APPLE_PAY_PAYMENT_TYPE_SALE        =>
+                Types::APPLE_PAY,
         ]);
 
         foreach ($selected_types as $selected_type) {
@@ -496,7 +500,8 @@ class emerchantpay_checkout extends emerchantpay_method_base
                         [
                             self::PPRO_TRANSACTION_SUFFIX,
                             self::GOOGLE_PAY_TRANSACTION_PREFIX,
-                            self::PAYPAL_TRANSACTION_PREFIX
+                            self::PAYPAL_TRANSACTION_PREFIX,
+                            self::APPLE_PAY_TRANSACTION_PREFIX
                         ],
                         '',
                         $selected_type
@@ -585,6 +590,9 @@ class emerchantpay_checkout extends emerchantpay_method_base
         // Exclude PayPal transaction.
         array_push($excludedTypes, \Genesis\API\Constants\Transaction\Types::PAY_PAL);
 
+        // Exclude Apple Pay transaction.
+        array_push($excludedTypes, \Genesis\API\Constants\Transaction\Types::APPLE_PAY);
+
         // Exclude Transaction Types
         $transactionTypes = array_diff($transactionTypes, $excludedTypes);
 
@@ -617,11 +625,22 @@ class emerchantpay_checkout extends emerchantpay_method_base
             ]
         );
 
+        $applePayTypes = array_map(
+            function ($type) {
+                return self::APPLE_PAY_TRANSACTION_PREFIX . $type;
+            },
+            [
+                self::APPLE_PAY_PAYMENT_TYPE_AUTHORIZE,
+                self::APPLE_PAY_PAYMENT_TYPE_SALE
+            ]
+        );
+
         $transactionTypes = array_merge(
             $transactionTypes,
             $pproTypes,
             $googlePayTypes,
-            $payPalTypes
+            $payPalTypes,
+            $applePayTypes
         );
         asort($transactionTypes);
 
@@ -699,6 +718,7 @@ class emerchantpay_checkout extends emerchantpay_method_base
                 $result = 'payment_type';
                 break;
             case \Genesis\API\Constants\Transaction\Types::GOOGLE_PAY:
+            case \Genesis\API\Constants\Transaction\Types::APPLE_PAY:
                 $result = 'payment_subtype';
                 break;
             default:

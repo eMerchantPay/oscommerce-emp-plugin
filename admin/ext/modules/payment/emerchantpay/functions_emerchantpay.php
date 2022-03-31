@@ -303,7 +303,7 @@ function emp_get_string_ends_with($haystack, $needle)
  * @param bool $is_order
  * @return null | \Genesis\API\Request\Financial\Alternatives\Klarna\Items
  */
-function get_klarna_custom_param_items($data, $is_order = false)
+function emp_get_klarna_custom_param_items($data, $is_order = false)
 {
     if (!isset($data->order)) {
         return new \Genesis\API\Request\Financial\Alternatives\Klarna\Items($data->currency);
@@ -317,7 +317,7 @@ function get_klarna_custom_param_items($data, $is_order = false)
 
         $items = new \Genesis\API\Request\Financial\Alternatives\Klarna\Items($order->info['currency']);
         foreach ($order->products as $product) {
-            $productType = get_product_type($product, $is_order) == 'virtual' ?
+            $productType = emp_get_product_type($product, $is_order) == 'virtual' ?
                 \Genesis\API\Request\Financial\Alternatives\Klarna\Item::ITEM_TYPE_DIGITAL :
                 \Genesis\API\Request\Financial\Alternatives\Klarna\Item::ITEM_TYPE_PHYSICAL;
 
@@ -367,7 +367,7 @@ function get_klarna_custom_param_items($data, $is_order = false)
  * @param $option_id
  * @return bool
  */
-function is_virtual_product($product_id, $option_id)
+function emp_is_virtual_product($product_id, $option_id)
 {
     if (!is_numeric($product_id) || !is_numeric($option_id)) {
         return false;
@@ -397,7 +397,7 @@ function is_virtual_product($product_id, $option_id)
  * @param $order_product_id
  * @return bool
  */
-function is_virtual_order_product($order_product_id)
+function emp_is_virtual_order_product($order_product_id)
 {
     if (!is_numeric($order_product_id)) {
         return false;
@@ -426,7 +426,7 @@ function is_virtual_order_product($order_product_id)
  * @param bool $is_order
  * @return string physical | virtual
  */
-function get_product_type($product, $is_order = false)
+function emp_get_product_type($product, $is_order = false)
 {
     if (!array_key_exists('attributes', $product)) {
         return 'physical';
@@ -434,8 +434,8 @@ function get_product_type($product, $is_order = false)
 
     foreach ($product['attributes'] as $attribute) {
         $type = $is_order ?
-            is_virtual_order_product((int)$attribute['attribute_id']) :
-            is_virtual_product((int)$product['id'], (int)$attribute['value_id']);
+            emp_is_virtual_order_product((int)$attribute['attribute_id']) :
+            emp_is_virtual_product((int)$product['id'], (int)$attribute['value_id']);
 
         if (isset($productTypeBool) && $productTypeBool != $type) {
             return 'physical';
@@ -457,7 +457,7 @@ function get_product_type($product, $is_order = false)
  * @param $order_id
  * @return array
  */
-function get_orders_products($order_id)
+function emp_get_orders_products($order_id)
 {
     $products = array();
 
@@ -520,7 +520,7 @@ function get_orders_products($order_id)
  * @param int $order_id
  * @return array
  */
-function get_orders_totals_values($order_id)
+function emp_get_orders_totals_values($order_id)
 {
     $order_totals = array();
 
@@ -549,16 +549,16 @@ function get_orders_totals_values($order_id)
  * @param int $order_id
  * @return stdClass
  */
-function get_klarna_data($order_id)
+function emp_get_klarna_data($order_id)
 {
     $klarnaData                  = new \stdClass();
     $klarnaData->order           = new order($order_id);
-    $klarnaData->order->products = get_orders_products($order_id);
+    $klarnaData->order->products = emp_get_orders_products($order_id);
 
-    $totals = get_orders_totals_values($order_id);
+    $totals = emp_get_orders_totals_values($order_id);
 
-    $taxes    = get_klarna_data_from_totals($totals, 'ot_tax');
-    $shipping = get_klarna_data_from_totals($totals, 'ot_shipping');
+    $taxes    = emp_get_klarna_data_from_totals($totals, 'ot_tax');
+    $shipping = emp_get_klarna_data_from_totals($totals, 'ot_shipping');
 
     $klarnaData->order->info['tax']             = $taxes['value'];
     $klarnaData->order->info['shipping_cost']   = $shipping['value'];
@@ -572,7 +572,7 @@ function get_klarna_data($order_id)
  * @param string $recordType
  * @return array
  */
-function get_klarna_data_from_totals($totals, $recordType)
+function emp_get_klarna_data_from_totals($totals, $recordType)
 {
     foreach ($totals as $total) {
         if ($total['class'] === $recordType) {
