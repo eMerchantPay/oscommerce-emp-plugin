@@ -22,6 +22,8 @@ use Genesis\API\Constants\Transaction\Parameters\PayByVouchers\CardTypes;
 use Genesis\API\Constants\Transaction\Parameters\PayByVouchers\RedeemTypes;
 use Genesis\API\Constants\Transaction\Types;
 use Genesis\API\Constants\Payment\Methods;
+use Genesis\API\Constants\Banks;
+use Genesis\Utils\Common as CommonUtils;
 
 if (!class_exists('emerchantpay_method_base')) {
     require_once DIR_FS_CATALOG . 'ext/modules/payment/emerchantpay/method_base.php';
@@ -464,6 +466,11 @@ class emerchantpay_checkout extends emerchantpay_method_base
             'trim',
             explode(',', $this->getSetting('TRANSACTION_TYPES'))
         );
+        $selected_bank_codes = array_map(
+            'trim',
+            explode(',', $this->getSetting('BANK_CODES'))
+        );
+
         $methods = \Genesis\API\Constants\Payment\Methods::getMethods();
 
         foreach ($methods as $method) {
@@ -488,6 +495,18 @@ class emerchantpay_checkout extends emerchantpay_method_base
         ]);
 
         foreach ($selected_types as $selected_type) {
+            if ($selected_type == Types::ONLINE_BANKING_PAYIN && CommonUtils::isValidArray($selected_bank_codes)) {
+                $processed_list[$selected_type]['name']                     = $selected_type;
+                $processed_list[$selected_type]['parameters']['bank_codes'] = array_map(
+                    function ($value) {
+                        return ['bank_code' => $value];
+                    },
+                    $selected_bank_codes
+                );
+
+                continue;
+            }
+
             if (array_key_exists($selected_type, $alias_map)) {
                 $transaction_type = $alias_map[$selected_type];
 
@@ -536,10 +555,20 @@ class emerchantpay_checkout extends emerchantpay_method_base
                 'Transaction Types',
                 $this->getSettingKey('TRANSACTION_TYPES'),
                 Types::SALE,
-                'What transaction type should we use upon purchase?.',
+                'What transaction type should we use upon purchase?',
                 '6',
                 '60',
                 "emp_zfg_select_drop_down_multiple_from_object({$this->requiredOptionsAttributes}, \"{$this->code}\", \"getConfigTransactionTypesOptions\", ",
+                null
+            ),
+            array(
+                'Bank code(s) for Online banking',
+                $this->getSettingKey('BANK_CODES'),
+                '',
+                'If Online banking is chosen as transaction type, here you can select Bank code(s).',
+                '6',
+                '62',
+                "emp_zfg_select_drop_down_multiple_from_object(null, \"{$this->code}\", \"getConfigBankCodes\", ",
                 null
             ),
             array(
@@ -696,12 +725,37 @@ class emerchantpay_checkout extends emerchantpay_method_base
             array(
                 'CHECKOUT_PAGE_TITLE',
                 'TRANSACTION_TYPES',
+                'BANK_CODES',
                 'LANGUAGE',
                 'WPF_TOKENIZATION'
             )
         );
 
         return $keys;
+    }
+
+    /**
+     * Returns list of available Bank codes for Online banking
+     *
+     * @return array
+     */
+    public function getAvailableBankCodes()
+    {
+        return [
+            Banks::CPI => 'Interac Combined Pay-in'
+        ];
+    }
+
+    /**
+     * Returns array of available Bank codes, formatted for the settings form
+     *
+     * @return array
+     */
+    public function getConfigBankCodes()
+    {
+        return $this->buildSettingsDropDownOptions(
+            $this->getAvailableBankCodes()
+        );
     }
 
     /**
