@@ -7,8 +7,7 @@ Requirements
 ------------
 
 * osCommerce v2.x
-* [GenesisPHP v1.21.2](https://github.com/GenesisGateway/genesis_php/releases/tag/1.21.2) - (Integrated in Module)
-* PCI-certified server in order to use ```emerchantpay Direct```
+* [GenesisPHP v1.21.3](https://github.com/GenesisGateway/genesis_php/releases/tag/1.21.3) - (Integrated in Module)
 
 GenesisPHP Requirements
 ------------
@@ -30,17 +29,11 @@ Installation
 * Login inside the ```Administration``` area
 * Make sure the Web User have write permissions to the following file ```<admin>/orders.php```, because it will be extended to allow managing order transactions
 * Navigate to ```Modules``` -> ```Payment``` and click ```Install Module``` button
-* Select the ```emerchantpay Checkout``` or ```emerchantpay Direct``` module and click ```Install Module```
+* Select the ```emerchantpay Checkout``` module and click ```Install Module```
 * Set your credentials click ```Save```
 
 Supported Transactions & Payment Methods
 ---------------------
-* ```emerchantpay Direct``` Payment Method
-    * __Authorize__
-    * __Authorize (3D-Secure)__
-    * __Sale__
-    * __Sale (3D-Secure)__
-
 * ```emerchantpay Checkout``` Payment Method
     * __Apple Pay__ 
     * __Argencard__
@@ -119,19 +112,6 @@ Supported Transactions & Payment Methods
     * __WebPay__
     * __WeChat__
 
-Configure osCommerce over secured HTTPS Connection
-------------
-_Note:_ This steps should be followed if you wish to use the ```emerchantpay Direct``` Method
-
-* Ensure you have installed a valid SSL Certificate on your __PCI-DSS Certified__ Web Server and you have configured your __Virtual Host__ properly.
-* Edit your Admin Configuration file ```<your-admin-folder>/includes/configure.php```
-   * Update your __HTTP_SERVER__ and __HTTPS_SERVER__ URLs with ```https``` protocol 
-   * Update your __HTTPS_CATALOG_SERVER__ URL with ```https``` protocol 
-   * Set __ENABLE_SSL__ and __ENABLE_SSL_CATALOG__ settings to ```true```
-* Edit your FrontSite Configuration file ```includes/configure.php```
-   * Update your __HTTP_SERVER__ and __HTTPS_SERVER__ URLs with ```https``` protocol  
-   * Set __ENABLE_SSL__ setting to ```true```
-* It is recommended to add a __Rewrite Rule__ from ```http``` to ```https``` or to add a __Permanent Redirect__ to ```https``` in your virtual host
 
 _Note_: If you have trouble with your credentials or terminal configuration, get in touch with our [support] team
 

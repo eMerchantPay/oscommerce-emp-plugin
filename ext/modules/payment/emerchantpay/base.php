@@ -24,11 +24,9 @@
 abstract class emerchantpay_base
 {
     const EMERCHANTPAY_CHECKOUT_METHOD_CODE = 'emerchantpay_checkout';
-    const EMERCHANTPAY_DIRECT_METHOD_CODE   = 'emerchantpay_direct';
 
     const EMERCHANTPAY_CHECKOUT_TRANSACTIONS_TABLE_NAME = 'emerchantpay_checkout_transactions';
     const EMERCHANTPAY_CHECKOUT_CONSUMERS_TABLE_NAME    = 'emerchantpay_checkout_consumers';
-    const EMERCHANTPAY_DIRECT_TRANSACTIONS_TABLE_NAME   = 'emerchantpay_direct_transactions';
 
     const ACTION_CAPTURE = 'doCapture';
     const ACTION_REFUND  = 'doRefund';

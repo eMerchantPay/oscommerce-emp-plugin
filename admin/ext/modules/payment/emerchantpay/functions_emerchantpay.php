@@ -226,10 +226,7 @@ function emp_get_is_payment_module_index_action()
     return
         emp_get_is_admin_payment_page_overview() &&
         isset($_GET['module']) &&
-        (
-            (strtolower($_GET['module']) == 'emerchantpay_checkout') ||
-            (strtolower($_GET['module']) == 'emerchantpay_direct')
-        );
+        (strtolower($_GET['module']) == 'emerchantpay_checkout');
 }
 
 /**
@@ -263,8 +260,6 @@ function emp_get_module_setting_placeholder($key)
         return "Enter your Genesis Username here";
     } elseif (emp_get_string_ends_with($key, "PASSWORD")) {
         return "Enter your Genesis Password here";
-    } elseif (emp_get_string_ends_with($key, "TOKEN")) {
-        return "Enter your Genesis Token here";
     }
 
     return null;

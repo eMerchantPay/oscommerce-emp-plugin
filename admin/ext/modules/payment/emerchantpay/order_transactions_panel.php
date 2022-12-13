@@ -82,10 +82,6 @@ class emerchantpay_order_transactions_panel
                 'method_code' => emerchantpay_base::EMERCHANTPAY_CHECKOUT_METHOD_CODE,
                 'table_name'  => emerchantpay_base::EMERCHANTPAY_CHECKOUT_TRANSACTIONS_TABLE_NAME
             ),
-            array(
-                'method_code' => emerchantpay_base::EMERCHANTPAY_DIRECT_METHOD_CODE,
-                'table_name'  => emerchantpay_base::EMERCHANTPAY_DIRECT_TRANSACTIONS_TABLE_NAME
-            ),
         );
 
         foreach ($paymentMethods as $paymentMethod) {

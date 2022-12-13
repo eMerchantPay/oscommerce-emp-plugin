@@ -20,13 +20,18 @@
 
 use Genesis\API\Constants\Transaction\Parameters\PayByVouchers\CardTypes;
 use Genesis\API\Constants\Transaction\Parameters\PayByVouchers\RedeemTypes;
+use Genesis\API\Constants\Transaction\Parameters\Threeds\V2\Control\ChallengeIndicators;
+use Genesis\API\Constants\Transaction\Parameters\ScaExemptions;
 use Genesis\API\Constants\Transaction\Types;
-use Genesis\API\Constants\Payment\Methods;
 use Genesis\API\Constants\Banks;
 use Genesis\Utils\Common as CommonUtils;
 
 if (!class_exists('emerchantpay_method_base')) {
     require_once DIR_FS_CATALOG . 'ext/modules/payment/emerchantpay/method_base.php';
+}
+
+if (!class_exists('emerchantpay_threeds')) {
+    require_once DIR_FS_CATALOG . 'ext/modules/payment/emerchantpay/emerchantpay_threeds.php';
 }
 
 class emerchantpay_checkout extends emerchantpay_method_base
@@ -212,6 +217,12 @@ class emerchantpay_checkout extends emerchantpay_method_base
 
         $this->setTransactionTypes($genesis->request(), $data);
         $this->setTokenizationData($genesis->request());
+
+        if ($this->getBoolSetting('THREEDS_ALLOWED')) {
+            $this->setThreedsData($genesis->request(), $data);
+        }
+
+        $this->setScaExemptionData($genesis->request(), $data);
 
         $genesis->execute();
 
@@ -591,6 +602,47 @@ class emerchantpay_checkout extends emerchantpay_method_base
                 "emp_zfg_draw_toggle(",
                 "emp_zfg_get_toggle_value"
             ),
+            array(
+                "Enable 3DSv2",
+                $this->getSettingKey('THREEDS_ALLOWED'),
+                "true",
+                "Enable 3DSv2 optional parameters",
+                "6",
+                "50",
+                "emp_zfg_draw_toggle(",
+                "emp_zfg_get_toggle_value"
+            ),
+            array(
+                '3DSv2 Challenge',
+                $this->getSettingKey('THREEDS_CHALLENGE_INDICATOR'),
+                ChallengeIndicators::NO_PREFERENCE,
+                'The value has weight and might impact the decision whether a challenge will be required' .
+                ' for the transaction or not.',
+                '6',
+                '65',
+                "emp_zfg_select_drop_down_single_from_object(\"{$this->code}\", \"getConfigChallengeIndicators\",",
+                null
+            ),
+            array(
+                'SCA Exemption',
+                $this->getSettingKey('SCA_EXEMPTION'),
+                ScaExemptions::EXEMPTION_LOW_RISK,
+                'Exemption for the Strong Customer Authentication.',
+                '6',
+                '65',
+                "emp_zfg_select_drop_down_single_from_object(\"{$this->code}\", \"getConfigScaExemption\",",
+                null
+            ),
+            array(
+                'Exemption Amount',
+                $this->getSettingKey('SCA_EXEMPTION_AMOUNT'),
+                '100',
+                'Exemption Amount determinate if the SCA Exemption should be included in the request to the Gateway.',
+                '6',
+                '10',
+                'emp_zfg_draw_input(null, ',
+                null
+            ),
         );
 
         return array_merge(
@@ -708,6 +760,7 @@ class emerchantpay_checkout extends emerchantpay_method_base
 
     /**
      * Get a list with all available Admin Settings for the Module
+     *
      * @return array
      */
     function keys()
@@ -717,17 +770,26 @@ class emerchantpay_checkout extends emerchantpay_method_base
         $this->appendSettingKeys(
             $keys,
             array(
-                'STATUS',
                 'ENVIRONMENT',
+                'CHECKOUT_PAGE_TITLE',
                 'TRANSACTION_TYPES',
-                'LANGUAGE'
+                'BANK_CODES',
+                'LANGUAGE',
+                'WPF_TOKENIZATION',
+                'THREEDS_ALLOWED',
+                'WPF_TOKENIZATION',
+                'SCA_EXEMPTION',
             ),
             array(
                 'CHECKOUT_PAGE_TITLE',
                 'TRANSACTION_TYPES',
                 'BANK_CODES',
                 'LANGUAGE',
-                'WPF_TOKENIZATION'
+                'WPF_TOKENIZATION',
+                'THREEDS_ALLOWED',
+                'THREEDS_CHALLENGE_INDICATOR',
+                'SCA_EXEMPTION',
+                'SCA_EXEMPTION_AMOUNT',
             )
         );
 
@@ -759,6 +821,42 @@ class emerchantpay_checkout extends emerchantpay_method_base
     }
 
     /**
+     * Builds a list of available challenge options
+     *
+     * @return array
+     */
+    public function getConfigChallengeIndicators()
+    {
+        $challengeIndicators = [
+            ChallengeIndicators::NO_PREFERENCE          => 'No preference',
+            ChallengeIndicators::NO_CHALLENGE_REQUESTED => 'No challenge requested',
+            ChallengeIndicators::PREFERENCE             => 'Preference',
+            ChallengeIndicators::MANDATE                => 'Mandate'
+        ];
+
+        return $this->buildSettingsDropDownOptions(
+            $challengeIndicators
+        );
+    }
+
+    /**
+     * Builds a list of available SCA Exemptions
+     *
+     * @return array
+     */
+    public function getConfigScaExemption()
+    {
+        $sca_excemptions = [
+            ScaExemptions::EXEMPTION_LOW_RISK  => 'Low risk',
+            ScaExemptions::EXEMPTION_LOW_VALUE => 'Low value',
+        ];
+
+        return $this->buildSettingsDropDownOptions(
+            $sca_excemptions
+        );
+    }
+
+    /**
      * @param $transaction_type
      * @return string
      */
@@ -780,5 +878,82 @@ class emerchantpay_checkout extends emerchantpay_method_base
         }
 
         return $result;
+    }
+
+    /**
+     * Set 3DSv2 optional parameters
+     *
+     * @param object $request
+     * @param object $data
+     *
+     * @return void
+     */
+    private function setThreedsData($request, $data)
+    {
+        /** @var \Genesis\API\Request\WPF\Create $request */
+        global $customer_id;
+
+        $customer_info                    = emerchantpay_threeds::getCustomerInfo($customer_id);
+        $customer_orders                  = emerchantpay_threeds::getCustomerOrders($customer_id);
+        $orders_for_a_period              = emerchantpay_threeds::findNumberOfOrdersForaPeriod($customer_orders);
+        $isVirtualCart                    = $data->order->content_type == 'virtual';
+
+        $request
+            ->setThreedsV2ControlChallengeIndicator($this->getSetting('THREEDS_CHALLENGE_INDICATOR'))
+            ->setThreedsV2PurchaseCategory(emerchantpay_threeds::getThreedsPurchaseCategory($isVirtualCart))
+            ->setThreedsV2MerchantRiskDeliveryTimeframe(
+                emerchantpay_threeds::getThreedsDeliveryTimeframe($isVirtualCart)
+            )
+            ->setThreedsV2MerchantRiskShippingIndicator(emerchantpay_threeds::getShippingIndicator($data))
+            ->setThreedsV2MerchantRiskReorderItemsIndicator(
+                emerchantpay_threeds::getReorderItemsIndicator($customer_id, $data->order->products)
+            )
+            ->setThreedsV2CardHolderAccountCreationDate($customer_info['date_account_created'])
+            ->setThreedsV2CardHolderAccountPasswordChangeDate($customer_info['date_account_last_modified'])
+            ->setThreedsV2CardHolderAccountPasswordChangeIndicator(
+                emerchantpay_threeds::getPasswordChangeIndicator($customer_info['date_account_last_modified'])
+            )
+            ->setThreedsV2CardHolderAccountLastChangeDate($customer_info['date_account_last_modified'])
+            ->setThreedsV2CardHolderAccountUpdateIndicator(emerchantpay_threeds::getUpdateIndicator($customer_info))
+            ->setThreedsV2CardHolderAccountRegistrationDate(
+                emerchantpay_threeds::findFirstCustomerOrderDate($customer_orders)
+            )
+            ->setThreedsV2CardHolderAccountRegistrationIndicator(
+                emerchantpay_threeds::getRegistrationIndicator($customer_orders)
+            )
+            ->setThreedsV2CardHolderAccountTransactionsActivityLast24Hours($orders_for_a_period['last_24h'])
+            ->setThreedsV2CardHolderAccountTransactionsActivityPreviousYear($orders_for_a_period['last_year'])
+            ->setThreedsV2CardHolderAccountPurchasesCountLast6Months($orders_for_a_period['last_6m'])
+        ;
+
+        if (!$isVirtualCart) {
+            $shipping_address_date_first_used = emerchantpay_threeds::findShippingAddressDateFirstUsed(
+                $data->order->delivery,
+                $customer_orders
+            );
+
+            $request
+                ->setThreedsV2CardHolderAccountShippingAddressDateFirstUsed($shipping_address_date_first_used)
+                ->setThreedsV2CardHolderAccountShippingAddressUsageIndicator(
+                    emerchantpay_threeds::getShippingAddressUsageIndicator($shipping_address_date_first_used)
+                );
+        }
+    }
+
+    /**
+     * Set SCA Exemption parameter
+     *
+     * @param $request
+     *
+     * @return void
+     */
+    private function setScaExemptionData($request)
+    {
+        /** @var \Genesis\API\Request\WPF\Create $request */
+
+        $wpf_amount = (float)$request->getAmount();
+        if ($wpf_amount <= $this->getSetting('SCA_EXEMPTION_AMOUNT')) {
+            $request->setScaExemption($this->getSetting('SCA_EXEMPTION'));
+        }
     }
 }
