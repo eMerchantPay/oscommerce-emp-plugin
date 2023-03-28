@@ -804,7 +804,8 @@ class emerchantpay_checkout extends emerchantpay_method_base
     public function getAvailableBankCodes()
     {
         return [
-            Banks::CPI => 'Interac Combined Pay-in'
+            Banks::CPI => 'Interac Combined Pay-in',
+            Banks::BCT => 'Bancontact'
         ];
     }
 
