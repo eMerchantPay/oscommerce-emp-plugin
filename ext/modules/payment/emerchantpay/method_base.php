@@ -115,7 +115,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
      * Return Module Version
      * @var string
      */
-    public $version         = '1.6.1';
+    public $version         = '1.6.2';
     /**
      * Return Module Version
      * @var string
@@ -807,8 +807,6 @@ abstract class emerchantpay_method_base extends emerchantpay_base
             explode(',', $this->getSetting('TRANSACTION_TYPES'))
         );
     }
-
-
 
     /**
      * Get the sum of the ammount for a list of transaction types and status

@@ -473,10 +473,13 @@ class emerchantpay_checkout extends emerchantpay_method_base
         $processed_list = array();
         $alias_map      = array();
 
-        $selected_types = array_map(
-            'trim',
-            explode(',', $this->getSetting('TRANSACTION_TYPES'))
+        $selected_types = static::orderCardTransactionTypes(
+            array_map(
+                'trim',
+                explode(',', $this->getSetting('TRANSACTION_TYPES'))
+            )
         );
+
         $selected_bank_codes = array_map(
             'trim',
             explode(',', $this->getSetting('BANK_CODES'))
@@ -956,5 +959,27 @@ class emerchantpay_checkout extends emerchantpay_method_base
         if ($wpf_amount <= $this->getSetting('SCA_EXEMPTION_AMOUNT')) {
             $request->setScaExemption($this->getSetting('SCA_EXEMPTION'));
         }
+    }
+
+
+    /**
+     * Order transaction types with Card Transaction types in front
+     *
+     * @param array $selectedTypes Selected transaction types
+     *
+     * @return array
+     */
+    private static function orderCardTransactionTypes($selectedTypes)
+    {
+        $order = \Genesis\API\Constants\Transaction\Types::getCardTransactionTypes();
+
+        asort($selectedTypes);
+
+        $sortedArray = array_intersect($selectedTypes, $order);
+
+        return array_merge(
+            $sortedArray,
+            array_diff($selectedTypes, $sortedArray)
+        );
     }
 }
