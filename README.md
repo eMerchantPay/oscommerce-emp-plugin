@@ -7,7 +7,7 @@ Requirements
 ------------
 
 * osCommerce v2.x
-* [GenesisPHP v1.21.9](https://github.com/GenesisGateway/genesis_php/releases/tag/1.21.9) - (Integrated in Module)
+* [GenesisPHP v1.21.11](https://github.com/GenesisGateway/genesis_php/releases/tag/1.21.11) - (Integrated in Module)
 
 GenesisPHP Requirements
 ------------
