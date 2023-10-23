@@ -808,7 +808,8 @@ class emerchantpay_checkout extends emerchantpay_method_base
     {
         return [
             Banks::CPI => 'Interac Combined Pay-in',
-            Banks::BCT => 'Bancontact'
+            Banks::BCT => 'Bancontact',
+            Banks::BLK => 'Blik One Click'
         ];
     }
 
