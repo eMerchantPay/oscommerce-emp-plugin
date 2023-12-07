@@ -408,7 +408,10 @@ class emerchantpay_checkout extends emerchantpay_method_base
             Types::TRUSTLY_SALE        => array(
                 'user_id' => $userIdHash
             ),
-            Types::KLARNA_AUTHORIZE    => emp_get_klarna_custom_param_items($data)->toArray()
+            Types::KLARNA_AUTHORIZE    => emp_get_klarna_custom_param_items($data)->toArray(),
+            Types::PAYSAFECARD         => array(
+                'customer_id' => $userIdHash
+            )
         );
 
         $transactionTypes = static::getCheckoutTransactionTypes();
