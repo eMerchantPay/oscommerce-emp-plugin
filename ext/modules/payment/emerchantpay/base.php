@@ -179,7 +179,7 @@ abstract class emerchantpay_base
     protected function setCredentials()
     {
         \Genesis\Config::setEndpoint(
-            \Genesis\API\Constants\Endpoints::EMERCHANTPAY
+            \Genesis\Api\Constants\Endpoints::EMERCHANTPAY
         );
 
         \Genesis\Config::setUsername(
@@ -191,8 +191,8 @@ abstract class emerchantpay_base
 
         \Genesis\Config::setEnvironment(
             $this->getIsLiveMode()
-                ? \Genesis\API\Constants\Environments::PRODUCTION
-                : \Genesis\API\Constants\Environments::STAGING
+                ? \Genesis\Api\Constants\Environments::PRODUCTION
+                : \Genesis\Api\Constants\Environments::STAGING
         );
     }
 

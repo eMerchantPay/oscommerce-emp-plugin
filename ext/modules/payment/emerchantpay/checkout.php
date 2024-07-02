@@ -63,11 +63,11 @@ class emerchantpay_checkout_notification extends emerchantpay_notification_base
 			}
 
 			switch ($payment->status) {
-				case \Genesis\API\Constants\Transaction\States::APPROVED:
+				case \Genesis\Api\Constants\Transaction\States::APPROVED:
 					$order_status_id = $this->getIntSetting('PROCESSED_ORDER_STATUS_ID');
 					break;
-				case \Genesis\API\Constants\Transaction\States::ERROR:
-				case \Genesis\API\Constants\Transaction\States::DECLINED:
+				case \Genesis\Api\Constants\Transaction\States::ERROR:
+				case \Genesis\Api\Constants\Transaction\States::DECLINED:
 					$order_status_id = $this->getIntSetting('FAILED_ORDER_STATUS_ID');
 					break;
 				default:

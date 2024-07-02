@@ -296,12 +296,12 @@ function emp_get_string_ends_with($haystack, $needle)
 /**
  * @param \stdClass $data
  * @param bool $is_order
- * @return null | \Genesis\API\Request\Financial\Alternatives\Klarna\Items
+ * @return null | \Genesis\Api\Request\Financial\Alternatives\Klarna\Items
  */
 function emp_get_klarna_custom_param_items($data, $is_order = false)
 {
     if (!isset($data->order)) {
-        return new \Genesis\API\Request\Financial\Alternatives\Klarna\Items($data->currency);
+        return new \Genesis\Api\Request\Financial\Alternatives\Klarna\Items($data->currency);
     }
 
     try {
@@ -310,13 +310,13 @@ function emp_get_klarna_custom_param_items($data, $is_order = false)
          */
         $order = $data->order;
 
-        $items = new \Genesis\API\Request\Financial\Alternatives\Klarna\Items($order->info['currency']);
+        $items = new \Genesis\Api\Request\Financial\Alternatives\Klarna\Items($order->info['currency']);
         foreach ($order->products as $product) {
             $productType = emp_get_product_type($product, $is_order) == 'virtual' ?
-                \Genesis\API\Request\Financial\Alternatives\Klarna\Item::ITEM_TYPE_DIGITAL :
-                \Genesis\API\Request\Financial\Alternatives\Klarna\Item::ITEM_TYPE_PHYSICAL;
+                \Genesis\Api\Request\Financial\Alternatives\Klarna\Item::ITEM_TYPE_DIGITAL :
+                \Genesis\Api\Request\Financial\Alternatives\Klarna\Item::ITEM_TYPE_PHYSICAL;
 
-            $klarnaItem = new \Genesis\API\Request\Financial\Alternatives\Klarna\Item(
+            $klarnaItem = new \Genesis\Api\Request\Financial\Alternatives\Klarna\Item(
                 $product['name'],
                 $productType,
                 $product['qty'],
@@ -328,9 +328,9 @@ function emp_get_klarna_custom_param_items($data, $is_order = false)
         $taxes = floatval($order->info['tax']);
         if ($taxes) {
             $items->addItem(
-                new \Genesis\API\Request\Financial\Alternatives\Klarna\Item(
+                new \Genesis\Api\Request\Financial\Alternatives\Klarna\Item(
                     'Taxes',
-                    \Genesis\API\Request\Financial\Alternatives\Klarna\Item::ITEM_TYPE_SURCHARGE,
+                    \Genesis\Api\Request\Financial\Alternatives\Klarna\Item::ITEM_TYPE_SURCHARGE,
                     1,
                     $taxes
                 )
@@ -340,9 +340,9 @@ function emp_get_klarna_custom_param_items($data, $is_order = false)
         $shipping = floatval($order->info['shipping_cost']);
         if ($shipping) {
             $items->addItem(
-                new \Genesis\API\Request\Financial\Alternatives\Klarna\Item(
+                new \Genesis\Api\Request\Financial\Alternatives\Klarna\Item(
                     $order->info['shipping_method'],
-                    \Genesis\API\Request\Financial\Alternatives\Klarna\Item::ITEM_TYPE_SHIPPING_FEE,
+                    \Genesis\Api\Request\Financial\Alternatives\Klarna\Item::ITEM_TYPE_SHIPPING_FEE,
                     1,
                     $shipping
                 )

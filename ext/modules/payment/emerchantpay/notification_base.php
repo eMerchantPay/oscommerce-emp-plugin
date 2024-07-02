@@ -109,7 +109,7 @@ abstract class emerchantpay_notification_base extends emerchantpay_base
 
         $this->setCredentials();
 
-        $notification = new \Genesis\API\Notification($requestData);
+        $notification = new \Genesis\Api\Notification($requestData);
 
         if (!$notification->isAuthentic()) {
             return false;

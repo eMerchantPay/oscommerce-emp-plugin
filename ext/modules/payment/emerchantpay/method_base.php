@@ -17,7 +17,7 @@
  * @license     http://opensource.org/licenses/gpl-2.0.php GNU General Public License, version 2 (GPL-2.0)
  */
 
-use Genesis\API\Constants\Transaction\Types;
+use Genesis\Api\Constants\Transaction\Types;
 
 if (!class_exists('emerchantpay_base')) {
     require_once DIR_FS_CATALOG . "ext/modules/payment/emerchantpay/base.php";
@@ -115,7 +115,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
      * Return Module Version
      * @var string
      */
-    public $version         = '1.6.5';
+    public $version         = '1.6.6';
     /**
      * Return Module Version
      * @var string
@@ -202,7 +202,6 @@ abstract class emerchantpay_method_base extends emerchantpay_base
      * @param stdClass $data
      * @return stdClass
      * @throws Exception
-     * @throws \Genesis\Exceptions\ErrorAPI
      */
     abstract protected function pay($data);
 
@@ -512,7 +511,6 @@ abstract class emerchantpay_method_base extends emerchantpay_base
      * @param $initialTransaction
      * @return \Genesis\Genesis
      * @throws \Genesis\Exceptions\DeprecatedMethod
-     * @throws \Genesis\Exceptions\ErrorAPI
      * @throws \Genesis\Exceptions\InvalidArgument
      * @throws \Genesis\Exceptions\InvalidMethod
      * @throws \Genesis\Exceptions\InvalidResponse
@@ -560,7 +558,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
 
         $timestamp = $this->formatTimeStamp($responseObject->timestamp);
 
-        if ($responseObject->status == \Genesis\API\Constants\Transaction\States::APPROVED) {
+        if ($responseObject->status == \Genesis\Api\Constants\Transaction\States::APPROVED) {
             $messageStack->add_session($responseObject->message, 'success');
         } else {
             $messageStack->add_session($responseObject->message, 'error');
@@ -1493,13 +1491,13 @@ abstract class emerchantpay_method_base extends emerchantpay_base
                         Types::PAY_PAL,
                         Types::APPLE_PAY
                     ),
-                    \Genesis\API\Constants\Transaction\States::APPROVED
+                    \Genesis\Api\Constants\Transaction\States::APPROVED
                 );
                 $totalCapturedAmount = $this->getTransactionsSumAmount(
                     $transaction['order_id'],
                     $transaction['unique_id'],
                     Types::CAPTURE,
-                    \Genesis\API\Constants\Transaction\States::APPROVED
+                    \Genesis\Api\Constants\Transaction\States::APPROVED
                 );
                 $transaction['available_amount'] = $totalAuthorizedAmount - $totalCapturedAmount;
             }
@@ -1516,7 +1514,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
                     $transaction['order_id'],
                     $transaction['unique_id'],
                     Types::REFUND,
-                    \Genesis\API\Constants\Transaction\States::APPROVED
+                    \Genesis\Api\Constants\Transaction\States::APPROVED
                 );
                 $transaction['available_amount'] = $totalCapturedAmount - $totalRefundedAmount;
             }
@@ -1527,7 +1525,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
                     $transaction['order_id'],
                     $transaction['unique_id'],
                     Types::VOID,
-                    \Genesis\API\Constants\Transaction\States::APPROVED
+                    \Genesis\Api\Constants\Transaction\States::APPROVED
                 ) !== false;
             } else {
                 $transaction['can_void'] = false;
@@ -1614,12 +1612,12 @@ abstract class emerchantpay_method_base extends emerchantpay_base
         }
 
         switch ($this->responseObject->status) {
-            case \Genesis\API\Constants\Transaction\States::APPROVED:
+            case \Genesis\Api\Constants\Transaction\States::APPROVED:
                 $orderStatusId = $this->getSetting('PROCESSED_ORDER_STATUS_ID');
                 $isPaymentSuccessful = true;
                 break;
-            case \Genesis\API\Constants\Transaction\States::ERROR:
-            case \Genesis\API\Constants\Transaction\States::DECLINED:
+            case \Genesis\Api\Constants\Transaction\States::ERROR:
+            case \Genesis\Api\Constants\Transaction\States::DECLINED:
                 $orderStatusId = $this->getSetting("FAILED_ORDER_STATUS_ID");
                 $isPaymentSuccessful = false;
                 break;
@@ -2611,7 +2609,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
         }
 
         switch ($transactionType) {
-            case \Genesis\API\Constants\Transaction\Types::GOOGLE_PAY:
+            case \Genesis\Api\Constants\Transaction\Types::GOOGLE_PAY:
                 if (self::ACTION_CAPTURE === $action) {
                     return in_array(
                         self::GOOGLE_PAY_TRANSACTION_PREFIX . self::GOOGLE_PAY_PAYMENT_TYPE_AUTHORIZE,
@@ -2677,7 +2675,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
             return false;
         }
 
-        $state = new \Genesis\API\Constants\Transaction\States($transactionType);
+        $state = new \Genesis\Api\Constants\Transaction\States($transactionType);
 
         return $state->isApproved();
     }

@@ -18,12 +18,12 @@
  * emerchantpay's Payment Gateway
  */
 
-use Genesis\API\Constants\Transaction\Parameters\PayByVouchers\CardTypes;
-use Genesis\API\Constants\Transaction\Parameters\PayByVouchers\RedeemTypes;
-use Genesis\API\Constants\Transaction\Parameters\Threeds\V2\Control\ChallengeIndicators;
-use Genesis\API\Constants\Transaction\Parameters\ScaExemptions;
-use Genesis\API\Constants\Transaction\Types;
-use Genesis\API\Constants\Banks;
+use Genesis\Api\Constants\Transaction\Parameters\PayByVouchers\CardTypes;
+use Genesis\Api\Constants\Transaction\Parameters\PayByVouchers\RedeemTypes;
+use Genesis\Api\Constants\Transaction\Parameters\Threeds\V2\Control\ChallengeIndicators;
+use Genesis\Api\Constants\Transaction\Parameters\ScaExemptions;
+use Genesis\Api\Constants\Transaction\Types;
+use Genesis\Api\Constants\Banks;
 use Genesis\Utils\Common as CommonUtils;
 
 if (!class_exists('emerchantpay_method_base')) {
@@ -145,16 +145,22 @@ class emerchantpay_checkout extends emerchantpay_method_base
         $errorMessage = null;
 
         try {
-            $this->responseObject = $this->pay($data);
+            $response = $this->pay($data);
+            $this->responseObject = $response->getResponseObject();
+
+            if (!$response->isSuccessful()) {
+                $errorMessage = isset($this->responseObject->message)
+                    ? $this->responseObject->message
+                    : '';
+
+                throw new \Exception($errorMessage);
+            }
 
             if (isset($this->responseObject->consumer_id)) {
                 $this->saveConsumerId($this->responseObject->consumer_id);
             }
 
             return true;
-        } catch (\Genesis\Exceptions\ErrorAPI $api) {
-            $errorMessage         = $api->getMessage();
-            $this->responseObject = null;
         } catch (\Genesis\Exceptions\ErrorNetwork $e) {
             $errorMessage         = $this->getSetting('MESSAGE_CHECK_CREDENTIALS') .
                                     PHP_EOL .
@@ -177,13 +183,12 @@ class emerchantpay_checkout extends emerchantpay_method_base
      *
      * @param stdClass $data
      *
-     * @return stdClass
+     * @return \Genesis\Api\Response
      * @throws Exception
-     * @throws \Genesis\Exceptions\ErrorAPI
      */
     protected function pay($data)
     {
-        $genesis = new \Genesis\Genesis('WPF\Create');
+        $genesis = new \Genesis\Genesis('Wpf\Create');
 
         $genesis
             ->request()
@@ -226,7 +231,7 @@ class emerchantpay_checkout extends emerchantpay_method_base
 
         $genesis->execute();
 
-        return $genesis->response()->getResponseObject();
+        return $genesis->response();
     }
 
     /**
@@ -342,7 +347,7 @@ class emerchantpay_checkout extends emerchantpay_method_base
      */
     protected function isErrorResponse($response)
     {
-        $state = new \Genesis\API\Constants\Transaction\States($response->status);
+        $state = new \Genesis\Api\Constants\Transaction\States($response->status);
 
         return $state->isError();
     }
@@ -386,19 +391,6 @@ class emerchantpay_checkout extends emerchantpay_method_base
     {
         $userIdHash          = static::getCurrentUserIdHash($data->order->customer['format_id']);
         $defaultCustomParams = array(
-            Types::PAYBYVOUCHER_SALE   => array(
-                'card_type'   => CardTypes::VIRTUAL,
-                'redeem_type' => RedeemTypes::INSTANT
-            ),
-            Types::PAYBYVOUCHER_YEEPAY => array(
-                'card_type'        => CardTypes::VIRTUAL,
-                'redeem_type'      => RedeemTypes::INSTANT,
-                'product_name'     => $data->description,
-                'product_category' => $data->description
-            ),
-            Types::CITADEL_PAYIN       => array(
-                'merchant_customer_id' => $userIdHash
-            ),
             Types::IDEBIT_PAYIN        => array(
                 'customer_account_id' => $userIdHash
             ),
@@ -488,10 +480,10 @@ class emerchantpay_checkout extends emerchantpay_method_base
             explode(',', $this->getSetting('BANK_CODES'))
         );
 
-        $methods = \Genesis\API\Constants\Payment\Methods::getMethods();
+        $methods = \Genesis\Api\Constants\Payment\Methods::getMethods();
 
         foreach ($methods as $method) {
-            $alias_map[$method . self::PPRO_TRANSACTION_SUFFIX] = \Genesis\API\Constants\Transaction\Types::PPRO;
+            $alias_map[$method . self::PPRO_TRANSACTION_SUFFIX] = \Genesis\Api\Constants\Transaction\Types::PPRO;
         }
 
         $alias_map = array_merge($alias_map, [
@@ -665,20 +657,20 @@ class emerchantpay_checkout extends emerchantpay_method_base
     {
         $data = array();
 
-        $transactionTypes = \Genesis\API\Constants\Transaction\Types::getWPFTransactionTypes();
+        $transactionTypes = \Genesis\Api\Constants\Transaction\Types::getWPFTransactionTypes();
         $excludedTypes    = self::getRecurringTransactionTypes();
 
         // Exclude PPRO transaction. This is not standalone transaction type
-        array_push($excludedTypes, \Genesis\API\Constants\Transaction\Types::PPRO);
+        array_push($excludedTypes, \Genesis\Api\Constants\Transaction\Types::PPRO);
 
         // Exclude GooglePay transaction. In this way Google Pay Payment types will be introduced
-        array_push($excludedTypes, \Genesis\API\Constants\Transaction\Types::GOOGLE_PAY);
+        array_push($excludedTypes, \Genesis\Api\Constants\Transaction\Types::GOOGLE_PAY);
 
         // Exclude PayPal transaction.
-        array_push($excludedTypes, \Genesis\API\Constants\Transaction\Types::PAY_PAL);
+        array_push($excludedTypes, \Genesis\Api\Constants\Transaction\Types::PAY_PAL);
 
         // Exclude Apple Pay transaction.
-        array_push($excludedTypes, \Genesis\API\Constants\Transaction\Types::APPLE_PAY);
+        array_push($excludedTypes, \Genesis\Api\Constants\Transaction\Types::APPLE_PAY);
 
         // Exclude Transaction Types
         $transactionTypes = array_diff($transactionTypes, $excludedTypes);
@@ -688,7 +680,7 @@ class emerchantpay_checkout extends emerchantpay_method_base
             function ($type) {
                 return $type . self::PPRO_TRANSACTION_SUFFIX;
             },
-            \Genesis\API\Constants\Payment\Methods::getMethods()
+            \Genesis\Api\Constants\Payment\Methods::getMethods()
         );
 
         $googlePayTypes = array_map(
@@ -732,8 +724,8 @@ class emerchantpay_checkout extends emerchantpay_method_base
         asort($transactionTypes);
 
         foreach ($transactionTypes as $type) {
-            $name = \Genesis\API\Constants\Transaction\Types::isValidTransactionType($type) ?
-                \Genesis\API\Constants\Transaction\Names::getName($type) : strtoupper($type);
+            $name = \Genesis\Api\Constants\Transaction\Types::isValidTransactionType($type) ?
+                \Genesis\Api\Constants\Transaction\Names::getName($type) : strtoupper($type);
 
             $data[$type] = $name;
         }
@@ -751,7 +743,7 @@ class emerchantpay_checkout extends emerchantpay_method_base
     {
         $data = array();
 
-        $languages = \Genesis\API\Constants\i18n::getAll();
+        $languages = \Genesis\Api\Constants\i18n::getAll();
 
         foreach ($languages as $language) {
             $languageTranslation = 'MODULE_PAYMENT_EMERCHANTPAY_CHECKOUT_' . strtoupper($language);
@@ -871,14 +863,14 @@ class emerchantpay_checkout extends emerchantpay_method_base
     private function getCustomParameterKey($transaction_type)
     {
         switch ($transaction_type) {
-            case \Genesis\API\Constants\Transaction\Types::PPRO:
+            case \Genesis\Api\Constants\Transaction\Types::PPRO:
                 $result = 'payment_method';
                 break;
-            case \Genesis\API\Constants\Transaction\Types::PAY_PAL:
+            case \Genesis\Api\Constants\Transaction\Types::PAY_PAL:
                 $result = 'payment_type';
                 break;
-            case \Genesis\API\Constants\Transaction\Types::GOOGLE_PAY:
-            case \Genesis\API\Constants\Transaction\Types::APPLE_PAY:
+            case \Genesis\Api\Constants\Transaction\Types::GOOGLE_PAY:
+            case \Genesis\Api\Constants\Transaction\Types::APPLE_PAY:
                 $result = 'payment_subtype';
                 break;
             default:
@@ -898,7 +890,7 @@ class emerchantpay_checkout extends emerchantpay_method_base
      */
     private function setThreedsData($request, $data)
     {
-        /** @var \Genesis\API\Request\WPF\Create $request */
+        /** @var \Genesis\Api\Request\Wpf\Create $request */
         global $customer_id;
 
         $customer_info                    = emerchantpay_threeds::getCustomerInfo($customer_id);
@@ -957,7 +949,7 @@ class emerchantpay_checkout extends emerchantpay_method_base
      */
     private function setScaExemptionData($request)
     {
-        /** @var \Genesis\API\Request\WPF\Create $request */
+        /** @var \Genesis\Api\Request\Wpf\Create $request */
 
         $wpf_amount = (float)$request->getAmount();
         if ($wpf_amount <= $this->getSetting('SCA_EXEMPTION_AMOUNT')) {
@@ -975,7 +967,7 @@ class emerchantpay_checkout extends emerchantpay_method_base
      */
     private static function orderCardTransactionTypes($selectedTypes)
     {
-        $order = \Genesis\API\Constants\Transaction\Types::getCardTransactionTypes();
+        $order = \Genesis\Api\Constants\Transaction\Types::getCardTransactionTypes();
 
         asort($selectedTypes);
 
