@@ -480,13 +480,7 @@ class emerchantpay_checkout extends emerchantpay_method_base
             explode(',', $this->getSetting('BANK_CODES'))
         );
 
-        $methods = \Genesis\Api\Constants\Payment\Methods::getMethods();
-
-        foreach ($methods as $method) {
-            $alias_map[$method . self::PPRO_TRANSACTION_SUFFIX] = \Genesis\Api\Constants\Transaction\Types::PPRO;
-        }
-
-        $alias_map = array_merge($alias_map, [
+        $alias_map = [
             self::GOOGLE_PAY_TRANSACTION_PREFIX . self::GOOGLE_PAY_PAYMENT_TYPE_AUTHORIZE =>
                 Types::GOOGLE_PAY,
             self::GOOGLE_PAY_TRANSACTION_PREFIX . self::GOOGLE_PAY_PAYMENT_TYPE_SALE      =>
@@ -501,7 +495,7 @@ class emerchantpay_checkout extends emerchantpay_method_base
                 Types::APPLE_PAY,
             self::APPLE_PAY_TRANSACTION_PREFIX . self::APPLE_PAY_PAYMENT_TYPE_SALE        =>
                 Types::APPLE_PAY,
-        ]);
+        ];
 
         foreach ($selected_types as $selected_type) {
             if ($selected_type == Types::ONLINE_BANKING_PAYIN && CommonUtils::isValidArray($selected_bank_codes)) {
@@ -526,7 +520,6 @@ class emerchantpay_checkout extends emerchantpay_method_base
                 $processed_list[$transaction_type]['parameters'][] = array(
                     $key => str_replace(
                         [
-                            self::PPRO_TRANSACTION_SUFFIX,
                             self::GOOGLE_PAY_TRANSACTION_PREFIX,
                             self::PAYPAL_TRANSACTION_PREFIX,
                             self::APPLE_PAY_TRANSACTION_PREFIX
@@ -675,14 +668,6 @@ class emerchantpay_checkout extends emerchantpay_method_base
         // Exclude Transaction Types
         $transactionTypes = array_diff($transactionTypes, $excludedTypes);
 
-        //Add PPRO types
-        $pproTypes = array_map(
-            function ($type) {
-                return $type . self::PPRO_TRANSACTION_SUFFIX;
-            },
-            \Genesis\Api\Constants\Payment\Methods::getMethods()
-        );
-
         $googlePayTypes = array_map(
             function ($type) {
                 return self::GOOGLE_PAY_TRANSACTION_PREFIX . $type;
@@ -716,7 +701,6 @@ class emerchantpay_checkout extends emerchantpay_method_base
 
         $transactionTypes = array_merge(
             $transactionTypes,
-            $pproTypes,
             $googlePayTypes,
             $payPalTypes,
             $applePayTypes
@@ -863,9 +847,6 @@ class emerchantpay_checkout extends emerchantpay_method_base
     private function getCustomParameterKey($transaction_type)
     {
         switch ($transaction_type) {
-            case \Genesis\Api\Constants\Transaction\Types::PPRO:
-                $result = 'payment_method';
-                break;
             case \Genesis\Api\Constants\Transaction\Types::PAY_PAL:
                 $result = 'payment_type';
                 break;

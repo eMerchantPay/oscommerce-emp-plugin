@@ -56,10 +56,6 @@ abstract class emerchantpay_method_base extends emerchantpay_base
      * @const string
      */
     const ACTION_CANCEL     = 'cancel';
-    /**
-     * PPRO transaction types suffix
-     */
-    const PPRO_TRANSACTION_SUFFIX = '_ppro';
 
     /**
      * Google Pay Transaction Prefix
@@ -115,7 +111,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
      * Return Module Version
      * @var string
      */
-    public $version         = '1.6.6';
+    public $version         = '1.6.7';
     /**
      * Return Module Version
      * @var string
