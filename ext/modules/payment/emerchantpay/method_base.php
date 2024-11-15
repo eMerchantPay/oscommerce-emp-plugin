@@ -24,7 +24,7 @@ if (!class_exists('emerchantpay_base')) {
 }
 
 /**
- * Base Abstract Payment Payment Method
+ * Base Abstract Payment Method
  * Class emerchantpay_method_base
  */
 abstract class emerchantpay_method_base extends emerchantpay_base
@@ -111,7 +111,7 @@ abstract class emerchantpay_method_base extends emerchantpay_base
      * Return Module Version
      * @var string
      */
-    public $version         = '1.6.8';
+    public $version         = '1.7.0';
     /**
      * Return Module Version
      * @var string
@@ -528,14 +528,14 @@ abstract class emerchantpay_method_base extends emerchantpay_base
             );
         }
 
-        $captureType = Types::getCaptureTransactionClass(Types::KLARNA_AUTHORIZE);
-        $refundType  = Types::getRefundTransactionClass(Types::KLARNA_CAPTURE);
+        $captureType = Types::getCaptureTransactionClass(Types::INVOICE);
+        $refundType  = Types::getRefundTransactionClass(Types::INVOICE_CAPTURE);
 
         if ($transactionType == $captureType || $transactionType == $refundType) {
-            $klarnaData  = emp_get_klarna_data($initialTransaction['order_id']);
-            $klarnaItems = emp_get_klarna_custom_param_items($klarnaData, true);
+            $invoiceData  = emp_get_invoice_data($initialTransaction['order_id']);
+            $invoiceItems = emp_get_invoice_custom_params($invoiceData, true);
 
-            $request->setItems($klarnaItems);
+            $request->setItems($invoiceItems);
         }
 
         $genesis->execute();

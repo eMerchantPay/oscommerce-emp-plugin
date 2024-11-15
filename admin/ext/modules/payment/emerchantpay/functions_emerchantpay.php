@@ -295,13 +295,13 @@ function emp_get_string_ends_with($haystack, $needle)
 
 /**
  * @param \stdClass $data
- * @param bool $is_order
- * @return null | \Genesis\Api\Request\Financial\Alternatives\Klarna\Items
+ * @param bool      $is_order
+ * @return null | \Genesis\Api\Request\Financial\Alternatives\Transaction\Items
  */
-function emp_get_klarna_custom_param_items($data, $is_order = false)
+function emp_get_invoice_custom_params($data, $is_order = false)
 {
     if (!isset($data->order)) {
-        return new \Genesis\Api\Request\Financial\Alternatives\Klarna\Items($data->currency);
+        return new \Genesis\Api\Request\Financial\Alternatives\Transaction\Items();
     }
 
     try {
@@ -310,43 +310,40 @@ function emp_get_klarna_custom_param_items($data, $is_order = false)
          */
         $order = $data->order;
 
-        $items = new \Genesis\Api\Request\Financial\Alternatives\Klarna\Items($order->info['currency']);
+        $items = new \Genesis\Api\Request\Financial\Alternatives\Transaction\Items();
+        $items->setCurrency($order->info['currency']);
+
         foreach ($order->products as $product) {
             $productType = emp_get_product_type($product, $is_order) == 'virtual' ?
-                \Genesis\Api\Request\Financial\Alternatives\Klarna\Item::ITEM_TYPE_DIGITAL :
-                \Genesis\Api\Request\Financial\Alternatives\Klarna\Item::ITEM_TYPE_PHYSICAL;
+                \Genesis\Api\Constants\Financial\Alternative\Transaction\ItemTypes::DIGITAL :
+                \Genesis\Api\Constants\Financial\Alternative\Transaction\ItemTypes::PHYSICAL;
 
-            $klarnaItem = new \Genesis\Api\Request\Financial\Alternatives\Klarna\Item(
-                $product['name'],
-                $productType,
-                $product['qty'],
-                $product['final_price']
-            );
-            $items->addItem($klarnaItem);
+            $invoiceItem = new \Genesis\Api\Request\Financial\Alternatives\Transaction\Item();
+            $invoiceItem->setName($product['name'])
+                ->setQuantity($product['qty'])
+                ->setUnitPrice($product['final_price'])
+                ->setItemType($productType);
+            $items->addItem($invoiceItem);
         }
 
         $taxes = floatval($order->info['tax']);
         if ($taxes) {
-            $items->addItem(
-                new \Genesis\Api\Request\Financial\Alternatives\Klarna\Item(
-                    'Taxes',
-                    \Genesis\Api\Request\Financial\Alternatives\Klarna\Item::ITEM_TYPE_SURCHARGE,
-                    1,
-                    $taxes
-                )
-            );
+            $invoiceItem = new \Genesis\Api\Request\Financial\Alternatives\Transaction\Item();
+            $invoiceItem->setName('Taxes')
+                ->setQuantity(1)
+                ->setUnitPrice($taxes)
+                ->setItemType(\Genesis\Api\Constants\Financial\Alternative\Transaction\ItemTypes::SURCHARGE);
+            $items->addItem($invoiceItem);
         }
 
         $shipping = floatval($order->info['shipping_cost']);
         if ($shipping) {
-            $items->addItem(
-                new \Genesis\Api\Request\Financial\Alternatives\Klarna\Item(
-                    $order->info['shipping_method'],
-                    \Genesis\Api\Request\Financial\Alternatives\Klarna\Item::ITEM_TYPE_SHIPPING_FEE,
-                    1,
-                    $shipping
-                )
-            );
+            $invoiceItem = new \Genesis\Api\Request\Financial\Alternatives\Transaction\Item();
+            $invoiceItem->setName($order->info['shipping_method'])
+                ->setQuantity(1)
+                ->setUnitPrice($shipping)
+                ->setItemType(\Genesis\Api\Constants\Financial\Alternative\Transaction\ItemTypes::SHIPPING_FEE);
+            $items->addItem($invoiceItem);
         }
 
         return $items;
@@ -544,22 +541,22 @@ function emp_get_orders_totals_values($order_id)
  * @param int $order_id
  * @return stdClass
  */
-function emp_get_klarna_data($order_id)
+function emp_get_invoice_data($order_id)
 {
-    $klarnaData                  = new \stdClass();
-    $klarnaData->order           = new order($order_id);
-    $klarnaData->order->products = emp_get_orders_products($order_id);
+    $invoiceData                  = new \stdClass();
+    $invoiceData->order           = new order($order_id);
+    $invoiceData->order->products = emp_get_orders_products($order_id);
 
     $totals = emp_get_orders_totals_values($order_id);
 
-    $taxes    = emp_get_klarna_data_from_totals($totals, 'ot_tax');
-    $shipping = emp_get_klarna_data_from_totals($totals, 'ot_shipping');
+    $taxes    = emp_get_invoice_data_from_totals($totals, 'ot_tax');
+    $shipping = emp_get_invoice_data_from_totals($totals, 'ot_shipping');
 
-    $klarnaData->order->info['tax']             = $taxes['value'];
-    $klarnaData->order->info['shipping_cost']   = $shipping['value'];
-    $klarnaData->order->info['shipping_method'] = $shipping['title'];
+    $invoiceData->order->info['tax']             = $taxes['value'];
+    $invoiceData->order->info['shipping_cost']   = $shipping['value'];
+    $invoiceData->order->info['shipping_method'] = $shipping['title'];
 
-    return $klarnaData;
+    return $invoiceData;
 }
 
 /**
@@ -567,7 +564,7 @@ function emp_get_klarna_data($order_id)
  * @param string $recordType
  * @return array
  */
-function emp_get_klarna_data_from_totals($totals, $recordType)
+function emp_get_invoice_data_from_totals($totals, $recordType)
 {
     foreach ($totals as $total) {
         if ($total['class'] === $recordType) {

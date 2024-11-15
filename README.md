@@ -7,7 +7,7 @@ Requirements
 ------------
 
 * osCommerce v2.x
-* [GenesisPHP v2.0.2](https://github.com/GenesisGateway/genesis_php/releases/tag/2.0.2) - (Integrated in Module)
+* [GenesisPHP v2.0.3](https://github.com/GenesisGateway/genesis_php/releases/tag/2.0.3) - (Integrated in Module)
 
 GenesisPHP Requirements
 ------------
@@ -65,7 +65,6 @@ Supported Transactions & Payment Methods
     * __InitRecurringSale (3D-Secure)__
     * __Intersolve__
     * __Itau__
-    * __Klarna__
     * __Multibanco__
     * __MyBank__
     * __Naranja__
