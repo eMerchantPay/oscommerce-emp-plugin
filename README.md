@@ -1,3 +1,5 @@
+\*CAUTION\* The emerchantpay Gateway Module Plugin for osCommerce is deprecated and will no longer receive updates.
+=============================
 emerchantpay Gateway Module for osCommerce
 =============================
 
